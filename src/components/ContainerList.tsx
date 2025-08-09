@@ -305,12 +305,33 @@ export default function ContainerList() {
     )
   }
 
+  // Separate containers into managed and other running containers
+  const managedContainers = containers?.filter(container => {
+    try {
+      return podmanService.isManagedContainer(container)
+    } catch (error) {
+      console.warn('Error checking if container is managed:', error)
+      return false
+    }
+  }) || []
+  
+  const otherRunningContainers = containers?.filter(container => {
+    try {
+      const isManaged = podmanService.isManagedContainer(container)
+      const isRunning = container.state === 'running'
+      return !isManaged && isRunning
+    } catch (error) {
+      console.warn('Error checking container status:', error)
+      return false
+    }
+  }) || []
+
   if (!containers || containers.length === 0) {
     return (
       <EmptyState>
         <DatabaseIcon />
         <Title headingLevel="h2" size="lg">
-          No databases deployed
+          No containers found
         </Title>
         <Content>
           Deploy your first database using the "Deploy Database" section.
@@ -331,37 +352,51 @@ export default function ContainerList() {
     }
   }
 
-  return (
-    <Flex direction={{ default: 'column' }} gap={{ default: 'gapLg' }}>
-      <FlexItem>
-        <Toolbar>
-          <ToolbarContent>
-            <ToolbarItem>
-              <Title headingLevel="h2" size="xl">
-                Deployed Databases
-              </Title>
-            </ToolbarItem>
-            <ToolbarItem>
-              <Label color="blue">
-                <CubeIcon /> {containers.length} container{containers.length !== 1 ? 's' : ''}
-              </Label>
-            </ToolbarItem>
-          </ToolbarContent>
-        </Toolbar>
-      </FlexItem>
+  const renderContainerTable = (containerList: any[], title: string, emptyMessage: string, showActions = true) => {
+    if (containerList.length === 0) {
+      return (
+        <FlexItem>
+          <EmptyState variant="sm">
+            <CubeIcon />
+            <Title headingLevel="h4" size="md">
+              {emptyMessage}
+            </Title>
+          </EmptyState>
+        </FlexItem>
+      )
+    }
 
+    return (
       <FlexItem>
-        <Table aria-label="All containers" variant="compact">
-          <Thead>
-            <Tr>
-              <Th width={40}>Container</Th>
-              <Th width={20}>Status</Th>
-              <Th width={20}>Ports</Th>
-              <Th width={20}>Actions</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-          {containers.map((container) => {
+        <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
+          <FlexItem>
+            <Toolbar>
+              <ToolbarContent>
+                <ToolbarItem>
+                  <Title headingLevel="h3" size="lg">
+                    {title}
+                  </Title>
+                </ToolbarItem>
+                <ToolbarItem>
+                  <Label color={showActions ? "blue" : "grey"}>
+                    <CubeIcon /> {containerList.length} container{containerList.length !== 1 ? 's' : ''}
+                  </Label>
+                </ToolbarItem>
+              </ToolbarContent>
+            </Toolbar>
+          </FlexItem>
+          <FlexItem>
+            <Table aria-label={title} variant="compact" isStriped>
+              <Thead>
+                <Tr>
+                  <Th width={40}>Container</Th>
+                  <Th width={20}>Status</Th>
+                  <Th width={20}>Ports</Th>
+                  {showActions && <Th width={20}>Actions</Th>}
+                </Tr>
+              </Thead>
+              <Tbody>
+              {containerList.map((container) => {
             try {
               const state = formatContainerState(container.state)
               const displayName = getContainerDisplayName(container)
@@ -373,10 +408,6 @@ export default function ContainerList() {
               return (
                 <Tr 
                   key={container.id}
-                  style={{
-                    border: isManaged ? '2px solid #06c' : undefined,
-                    backgroundColor: isManaged ? '#f0f8ff' : undefined
-                  }}
                 >
                   <Td>
                     <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapMd' }}>
@@ -396,13 +427,6 @@ export default function ContainerList() {
                                   {displayName}
                                 </Title>
                               </FlexItem>
-                              {isManaged && (
-                                <FlexItem>
-                                  <Label color="blue" icon={<DatabaseIcon />}>
-                                    Managed
-                                  </Label>
-                                </FlexItem>
-                              )}
                             </Flex>
                           </FlexItem>
                           <FlexItem>
@@ -488,9 +512,25 @@ export default function ContainerList() {
                             })()
                             }
                   </Td>
-                  <Td>
-                    {isManaged && renderActionButtons(container)}
-                  </Td>
+                  {showActions && (
+                    <Td>
+                      {isManaged && renderActionButtons(container)}
+                      {!isManaged && (
+                        <Flex gap={{ default: 'gapSm' }}>
+                          <FlexItem>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<EyeIcon />}
+                              onClick={() => setSelectedContainerId(container.id)}
+                            >
+                              View
+                            </Button>
+                          </FlexItem>
+                        </Flex>
+                      )}
+                    </Td>
+                  )}
                 </Tr>
               )
             } catch (error) {
@@ -501,10 +541,38 @@ export default function ContainerList() {
                 </Tr>
               )
             }
-          })}
-          </Tbody>
-        </Table>
+              })}
+              </Tbody>
+            </Table>
+          </FlexItem>
+        </Flex>
       </FlexItem>
+    )
+  }
+
+  return (
+    <Flex direction={{ default: 'column' }} gap={{ default: 'gapXl' }}>
+      <FlexItem>
+        <Title headingLevel="h2" size="xl">
+          Container Management
+        </Title>
+      </FlexItem>
+
+      {/* Managed Database Containers */}
+      {renderContainerTable(
+        managedContainers,
+        "Managed Database Containers",
+        "No managed database containers found",
+        true
+      )}
+
+      {/* Other Running Containers */}
+      {renderContainerTable(
+        otherRunningContainers,
+        "Other Running Containers",
+        "No other running containers found",
+        false
+      )}
 
       {/* Delete Confirmation Modal */}
       <Modal
