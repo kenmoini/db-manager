@@ -175,27 +175,79 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             </CardTitle>
           </CardHeader>
           <CardBody>
-            {container.ports && container.ports.length > 0 ? (
-              <DescriptionList>
-                {container.ports.map((port, index) => (
-                  <DescriptionListGroup key={index}>
-                    <DescriptionListTerm>Port {port.privatePort}</DescriptionListTerm>
-                    <DescriptionListDescription>
-                      <Label variant="outline" color="blue">
-                        {port.publicPort ? `${port.publicPort} → ${port.privatePort}` : port.privatePort}
-                      </Label>
-                    </DescriptionListDescription>
-                  </DescriptionListGroup>
-                ))}
-              </DescriptionList>
-            ) : (
-              <EmptyState>
-                <InfoIcon />
-                <Title headingLevel="h4" size="lg">
-                  No exposed ports
-                </Title>
-              </EmptyState>
-            )}
+            {(() => {
+              // Handle different port data structures from Docker/Podman APIs
+              const ports = container.ports || []
+              
+              if (ports.length === 0) {
+                return (
+                  <EmptyState>
+                    <InfoIcon />
+                    <Title headingLevel="h4" size="lg">
+                      No exposed ports
+                    </Title>
+                  </EmptyState>
+                )
+              }
+
+              const validPorts = ports.filter(port => {
+                // Handle both Docker API format and our Port interface
+                const portAny = port as any
+                return port && (port.privatePort || portAny.PrivatePort || portAny.ContainerPort)
+              })
+
+              if (validPorts.length === 0) {
+                return (
+                  <EmptyState>
+                    <InfoIcon />
+                    <Title headingLevel="h4" size="lg">
+                      No exposed ports
+                    </Title>
+                  </EmptyState>
+                )
+              }
+
+              return (
+                <DescriptionList>
+                  {validPorts.map((port, index) => {
+                    // Handle different API response formats with type assertion
+                    const portAny = port as any
+                    const privatePort = port.privatePort || portAny.PrivatePort || portAny.ContainerPort
+                    const publicPort = port.publicPort || portAny.PublicPort
+                    const portType = port.type || portAny.Type || 'tcp'
+                    const portIP = port.ip || portAny.IP || '0.0.0.0'
+                    
+                    return (
+                      <DescriptionListGroup key={index}>
+                        <DescriptionListTerm>
+                          Port {privatePort}/{portType}
+                        </DescriptionListTerm>
+                        <DescriptionListDescription>
+                          <Flex direction={{ default: 'column' }} gap={{ default: 'gapXs' }}>
+                            <FlexItem>
+                              <Label variant="outline" color="blue">
+                                {publicPort 
+                                  ? `${portIP}:${publicPort} → ${privatePort}/${portType}` 
+                                  : `${privatePort}/${portType}`
+                                }
+                              </Label>
+                            </FlexItem>
+                            <FlexItem>
+                              <Content component={ContentVariants.small}>
+                                {publicPort 
+                                  ? `External access via port ${publicPort}` 
+                                  : 'Internal access only'
+                                }
+                              </Content>
+                            </FlexItem>
+                          </Flex>
+                        </DescriptionListDescription>
+                      </DescriptionListGroup>
+                    )
+                  })}
+                </DescriptionList>
+              )
+            })()}
           </CardBody>
         </Card>
       </GridItem>
