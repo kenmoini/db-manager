@@ -183,6 +183,11 @@ class PodmanService {
     const image = `${config.imageRepository}:${config.version}`
     const containerName = `db-${config.type}-${config.name}`
     
+    // Get the default container port based on database type
+    const containerPort = config.type === 'mariadb' ? 3306 : 5432
+    // Use the user-specified port as the host port
+    const hostPort = config.port
+    
     const env = [
       ...(config.type === 'mariadb' ? [
         `MYSQL_ROOT_PASSWORD=${config.rootPassword}`,
@@ -198,7 +203,7 @@ class PodmanService {
     ]
 
     const portBindings: Record<string, Array<{ HostPort: string }>> = {}
-    portBindings[`${config.port}/tcp`] = [{ HostPort: config.port.toString() }]
+    portBindings[`${containerPort}/tcp`] = [{ HostPort: hostPort.toString() }]
 
     const hostConfig: any = {
       PortBindings: portBindings,
@@ -220,13 +225,13 @@ class PodmanService {
         name: containerName,  // This will be removed in createContainer method
         Env: env,
         ExposedPorts: {
-          [`${config.port}/tcp`]: {}
+          [`${containerPort}/tcp`]: {}
         },
         HostConfig: hostConfig,
         Labels: {
           'db-manager.database-type': config.type,
           'db-manager.database-name': config.name,
-          'db-manager.database-port': config.port.toString(),
+          'db-manager.database-port': hostPort.toString(),
           'db-manager.managed': 'true',
         },
       }
@@ -237,13 +242,13 @@ class PodmanService {
         Name: containerName,  // Podman expects capitalized 'Name'
         Env: env,
         ExposedPorts: {
-          [`${config.port}/tcp`]: {}
+          [`${containerPort}/tcp`]: {}
         },
         HostConfig: hostConfig,
         Labels: {
           'db-manager.database-type': config.type,
           'db-manager.database-name': config.name,
-          'db-manager.database-port': config.port.toString(),
+          'db-manager.database-port': hostPort.toString(),
           'db-manager.managed': 'true',
         },
       }
