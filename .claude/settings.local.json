@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:www.patternfly.org)",
+      "mcp__selenium__start_browser",
+      "mcp__selenium__take_screenshot",
+      "mcp__selenium__click_element",
+      "mcp__selenium__find_element",
+      "mcp__selenium__close_session",
+      "mcp__selenium__navigate"
+    ],
+    "deny": []
+  }
+}

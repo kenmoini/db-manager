@@ -1,0 +1,95 @@
+@import url('@patternfly/react-core/dist/styles/base.css');
+
+/* Red Hat font family overrides */
+:root {
+  --pf-v6-global--FontFamily--text: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --pf-v6-global--FontFamily--heading: "Red Hat Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --pf-v6-global--FontFamily--sans-serif: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Header elements use Red Hat Display */
+.pf-v6-c-title,
+.pf-v6-c-masthead {
+  font-family: "Red Hat Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* All other components use Red Hat Text */
+.pf-v6-c-content,
+.pf-v6-c-label,
+.pf-v6-c-button,
+.pf-v6-c-form-control,
+.pf-v6-c-card,
+.pf-v6-c-nav,
+.pf-v6-c-toolbar,
+.pf-v6-c-data-list {
+  font-family: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* Custom overrides for the database manager */
+body {
+  margin: 0;
+  font-family: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  font-family: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Headers specifically use Red Hat Display */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Red Hat Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom styles for specific components */
+.db-manager-container-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-v6-global--spacer--xs);
+}
+
+.db-manager-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.db-manager-logs {
+  font-family: var(--pf-v6-global--FontFamily--monospace);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Global override: Remove all border-radius from PatternFly elements */
+*,
+*::before,
+*::after,
+[class*="pf-v6-"],
+[class*="pf-c-"],
+[class*="pf-u-"] {
+  border-radius: 0 !important;
+}
+
+/* Also override CSS custom properties for border-radius */
+:root {
+  --pf-v6-global--BorderRadius--sm: 0;
+  --pf-v6-global--BorderRadius--md: 0;
+  --pf-v6-global--BorderRadius--lg: 0;
+  --pf-v6-global--BorderRadius--xl: 0;
+  --pf-v6-global--BorderRadius: 0;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .pf-v6-c-card__body {
+    padding: var(--pf-v6-global--spacer--md);
+  }
+  
+  .pf-v6-c-toolbar {
+    flex-wrap: wrap;
+  }
+}
