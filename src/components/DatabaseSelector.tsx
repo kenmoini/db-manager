@@ -75,7 +75,9 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
                   onClick={() => handleSelect(template)}
                   style={{ 
                     cursor: 'pointer',
-                    border: '1px solid #d2d2d2',
+                    border: selectedTemplate?.type === template.type 
+                      ? '2px solid #0066cc' 
+                      : '1px solid #d2d2d2',
                     height: '100%',
                     minHeight: '280px'
                   }}
@@ -83,22 +85,29 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
                 >
                   <CardHeader style={{ paddingBottom: '8px' }}>
                     <CardTitle>
-                      <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
-                        <FlexItem style={{ flexShrink: 0 }}>
-                          <Icon size="xl">
-                            <span style={{ fontSize: '24px' }}>{template.icon}</span>
-                          </Icon>
-                        </FlexItem>
-                        <FlexItem style={{ minWidth: 0, flex: 1 }}>
-                          <Title headingLevel="h3" size="lg" style={{ 
-                            whiteSpace: 'nowrap', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis',
-                            margin: 0
-                          }}>
-                            {template.name}
-                          </Title>
-                        </FlexItem>
+                      <Flex alignItems={{ default: 'alignItemsCenter' }} justifyContent={{ default: 'justifyContentSpaceBetween' }} gap={{ default: 'gapSm' }} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
+                        <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }} style={{ flexShrink: 1, minWidth: 0 }}>
+                          <FlexItem style={{ flexShrink: 0 }}>
+                            <Icon size="xl">
+                              <span style={{ fontSize: '24px' }}>{template.icon}</span>
+                            </Icon>
+                          </FlexItem>
+                          <FlexItem style={{ minWidth: 0, flex: 1 }}>
+                            <Title headingLevel="h3" size="lg" style={{ 
+                              whiteSpace: 'nowrap', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis',
+                              margin: 0
+                            }}>
+                              {template.name}
+                            </Title>
+                          </FlexItem>
+                        </Flex>
+                        {selectedTemplate?.type === template.type && (
+                          <FlexItem style={{ flexShrink: 0 }}>
+                            <Label color="blue" isCompact>Selected</Label>
+                          </FlexItem>
+                        )}
                       </Flex>
                     </CardTitle>
                   </CardHeader>
@@ -123,11 +132,6 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
                       </FlexItem>
                     </Flex>
                   </CardBody>
-                  {selectedTemplate?.type === template.type && (
-                    <CardFooter>
-                      <Label color="blue">Selected</Label>
-                    </CardFooter>
-                  )}
                 </Card>
               </GalleryItem>
             ))}
@@ -138,39 +142,37 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
           <FlexItem>
             <Card>
               <CardBody>
-                <Toolbar>
-                  <ToolbarContent>
-                    <ToolbarItem>
-                      <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
-                        <FlexItem>
-                          <Title headingLevel="h4" size="md">
-                            Selected: {selectedTemplate.name}
-                          </Title>
-                        </FlexItem>
-                        <FlexItem>
-                          <Content component={ContentVariants.p}>
-                            {selectedTemplate.description}
-                          </Content>
-                        </FlexItem>
-                        <FlexItem>
-                          <Content component={ContentVariants.small}>
-                            Available versions: {selectedTemplate.availableVersions.join(', ')}
-                          </Content>
-                        </FlexItem>
-                      </Flex>
-                    </ToolbarItem>
-                    <ToolbarItem>
-                      <Button
-                        variant="primary"
-                        onClick={handleContinue}
-                        icon={<ArrowRightIcon />}
-                        iconPosition="end"
-                      >
-                        Continue Setup
-                      </Button>
-                    </ToolbarItem>
-                  </ToolbarContent>
-                </Toolbar>
+                <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+                  <FlexItem>
+                    <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                      <FlexItem>
+                        <Title headingLevel="h4" size="md">
+                          Selected: {selectedTemplate.name}
+                        </Title>
+                      </FlexItem>
+                      <FlexItem>
+                        <Content component={ContentVariants.p}>
+                          {selectedTemplate.description}
+                        </Content>
+                      </FlexItem>
+                      <FlexItem>
+                        <Content component={ContentVariants.small}>
+                          Available versions: {selectedTemplate.availableVersions.map(v => v.displayName).join(', ')}
+                        </Content>
+                      </FlexItem>
+                    </Flex>
+                  </FlexItem>
+                  <FlexItem>
+                    <Button
+                      variant="primary"
+                      onClick={handleContinue}
+                      icon={<ArrowRightIcon />}
+                      iconPosition="end"
+                    >
+                      Continue Setup
+                    </Button>
+                  </FlexItem>
+                </Flex>
               </CardBody>
             </Card>
           </FlexItem>

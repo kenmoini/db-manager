@@ -48,6 +48,7 @@ export interface DatabaseConfig {
   port: number
   persistentStorage: boolean
   storagePath?: string
+  imageRepository: string
   environment?: Record<string, string>
 }
 
@@ -70,14 +71,21 @@ export interface PodmanInfo {
 
 export type DatabaseType = 'mariadb' | 'postgresql'
 
+export interface DatabaseVersion {
+  displayName: string
+  containerTag: string
+  containerTagUBI: string
+}
+
 export interface DatabaseTemplate {
   type: DatabaseType
   name: string
   description: string
   defaultVersion: string
-  availableVersions: string[]
+  availableVersions: DatabaseVersion[]
   defaultPort: number
   icon: string
+  imageRepository: string
   environmentVariables: EnvironmentVariable[]
 }
 

@@ -6,9 +6,17 @@ export const databaseTemplates: DatabaseTemplate[] = [
     name: 'MariaDB',
     description: 'Popular MySQL-compatible relational database',
     defaultVersion: 'latest',
-    availableVersions: ['latest', '11.2', '11.1', '11.0', '10.11', '10.6'],
+    availableVersions: [
+      { displayName: 'latest', containerTag: 'latest', containerTagUBI: 'verylatest-ubi' },
+      { displayName: '11.2', containerTag: '11.2', containerTagUBI: '11.2-ubi' },
+      { displayName: '11.1', containerTag: '11.1', containerTagUBI: '11.1-ubi' },
+      { displayName: '11.0', containerTag: '11.0', containerTagUBI: '11.0-ubi' },
+      { displayName: '10.11', containerTag: '10.11', containerTagUBI: '10.11-ubi' },
+      { displayName: '10.6', containerTag: '10.6', containerTagUBI: '10.6-ubi' },
+    ],
     defaultPort: 3306,
     icon: '🗄️',
+    imageRepository: 'quay.io/mariadb-foundation/mariadb-devel',
     environmentVariables: [
       {
         key: 'MYSQL_ROOT_PASSWORD',
@@ -45,9 +53,17 @@ export const databaseTemplates: DatabaseTemplate[] = [
     name: 'PostgreSQL',
     description: 'Advanced open-source relational database',
     defaultVersion: 'latest',
-    availableVersions: ['latest', '16', '15', '14', '13', '12'],
+    availableVersions: [
+      { displayName: 'latest', containerTag: 'latest', containerTagUBI: 'latest-ubi' },
+      { displayName: '16', containerTag: '16', containerTagUBI: '16-ubi' },
+      { displayName: '15', containerTag: '15', containerTagUBI: '15-ubi' },
+      { displayName: '14', containerTag: '14', containerTagUBI: '14-ubi' },
+      { displayName: '13', containerTag: '13', containerTagUBI: '13-ubi' },
+      { displayName: '12', containerTag: '12', containerTagUBI: '12-ubi' },
+    ],
     defaultPort: 5432,
     icon: '🐘',
+    imageRepository: 'postgres',
     environmentVariables: [
       {
         key: 'POSTGRES_PASSWORD',

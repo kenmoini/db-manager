@@ -237,6 +237,55 @@ app.all('/api/podman/*', async (req, res) => {
   }
 });
 
+// Filesystem browsing endpoint
+app.get('/api/filesystem', async (req, res) => {
+  try {
+    const dirPath = req.query.path || '/';
+    
+    // Security check - prevent directory traversal attacks
+    const safePath = path.resolve(dirPath);
+    if (!safePath.startsWith('/')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    
+    // Check if path exists and is a directory
+    if (!fs.existsSync(safePath)) {
+      return res.status(404).json({ error: 'Path not found' });
+    }
+    
+    const stats = fs.statSync(safePath);
+    if (!stats.isDirectory()) {
+      return res.status(400).json({ error: 'Path is not a directory' });
+    }
+    
+    // Read directory contents
+    const items = fs.readdirSync(safePath, { withFileTypes: true })
+      .map(dirent => ({
+        name: dirent.name,
+        isDirectory: dirent.isDirectory(),
+        path: path.join(safePath, dirent.name)
+      }))
+      .filter(item => item.isDirectory) // Only return directories
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Add parent directory if not at root
+    const parentPath = path.dirname(safePath);
+    const result = {
+      currentPath: safePath,
+      parentPath: safePath !== '/' ? parentPath : null,
+      directories: items
+    };
+    
+    res.json(result);
+  } catch (error) {
+    console.error(`❌ Filesystem browse error: ${error.message}`);
+    res.status(500).json({
+      error: 'Filesystem Error',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
@@ -280,7 +329,8 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
-      dockerProxy: '/api/podman/*'
+      dockerProxy: '/api/podman/*',
+      filesystem: '/api/filesystem?path=/path/to/browse'
     },
     socketPath: DOCKER_SOCKET
   });

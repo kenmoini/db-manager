@@ -11,7 +11,8 @@
       "mcp__selenium__click_element",
       "mcp__selenium__find_element",
       "mcp__selenium__close_session",
-      "mcp__selenium__navigate"
+      "mcp__selenium__navigate",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

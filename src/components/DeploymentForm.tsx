@@ -44,6 +44,7 @@ import {
 import { useDeployDatabase } from '../hooks/usePodman'
 import { databaseTemplates, generateRandomPassword, validateDatabaseName, validatePort } from '../utils/databaseTemplates'
 import { DatabaseConfig, DatabaseTemplate } from '../types'
+import DirectoryBrowser from './DirectoryBrowser'
 
 interface DeploymentFormProps {
   template?: DatabaseTemplate
@@ -52,23 +53,30 @@ interface DeploymentFormProps {
 }
 
 export default function DeploymentForm({ template, onCancel, onSuccess }: DeploymentFormProps) {
+  const getDefaultVersion = (template: DatabaseTemplate) => {
+    const defaultVersionObj = template.availableVersions.find(v => v.displayName === template.defaultVersion)
+    return defaultVersionObj?.containerTag || template.defaultVersion
+  }
+
   const [selectedTemplate, setSelectedTemplate] = useState<DatabaseTemplate>(
     template || databaseTemplates[0]
   )
   const [config, setConfig] = useState<DatabaseConfig>({
     type: selectedTemplate.type,
     name: '',
-    version: selectedTemplate.defaultVersion,
+    version: getDefaultVersion(selectedTemplate),
     rootPassword: '',
     port: selectedTemplate.defaultPort,
     persistentStorage: true,
     storagePath: '',
+    imageRepository: selectedTemplate.imageRepository,
     environment: {},
   })
   
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showDirectoryBrowser, setShowDirectoryBrowser] = useState(false)
 
   const deployMutation = useDeployDatabase()
 
@@ -78,8 +86,9 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
       setConfig(prev => ({
         ...prev,
         type: template.type,
-        version: template.defaultVersion,
+        version: getDefaultVersion(template),
         port: template.defaultPort,
+        imageRepository: template.imageRepository,
       }))
     }
   }, [template, selectedTemplate])
@@ -113,6 +122,15 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
 
   const togglePasswordVisibility = (field: string) => {
     setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  const handleFolderSelect = () => {
+    setShowDirectoryBrowser(true)
+  }
+
+  const handleDirectorySelect = (path: string) => {
+    handleInputChange('storagePath', path)
+    setShowDirectoryBrowser(false)
   }
 
   const validateForm = (): boolean => {
@@ -152,6 +170,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
     try {
       const finalConfig: DatabaseConfig = {
         ...config,
+        imageRepository: selectedTemplate.imageRepository,
         environment: {
           ...config.environment,
           ...(config.type === 'mariadb' ? {
@@ -268,7 +287,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                 onChange={(_event, value) => handleInputChange('version', value)}
                               >
                                 {selectedTemplate.availableVersions.map(version => (
-                                  <FormSelectOption key={version} value={version} label={version} />
+                                  <FormSelectOption key={version.displayName} value={version.containerTag} label={version.displayName} />
                                 ))}
                               </FormSelect>
                             </FormGroup>
@@ -483,6 +502,8 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                     <Button
                                       variant="control"
                                       icon={<FolderIcon />}
+                                      onClick={handleFolderSelect}
+                                      aria-label="Select folder"
                                     />
                                   </InputGroupItem>
                                 </InputGroup>
@@ -540,6 +561,13 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
           </Grid>
         </Form>
       </FlexItem>
+      
+      <DirectoryBrowser
+        isOpen={showDirectoryBrowser}
+        onClose={() => setShowDirectoryBrowser(false)}
+        onSelect={handleDirectorySelect}
+        initialPath={config.storagePath || '/'}
+      />
     </Flex>
   )
 }

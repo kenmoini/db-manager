@@ -167,7 +167,7 @@ class PodmanService {
     const containerConfig = this.buildContainerConfig(config)
     
     // Pull image first
-    const image = `${config.type}:${config.version}`
+    const image = `${config.imageRepository}:${config.version}`
     await this.pullImage(image)
     
     // Create container
@@ -180,7 +180,7 @@ class PodmanService {
   }
 
   private buildContainerConfig(config: DatabaseConfig): any {
-    const image = `${config.type}:${config.version}`
+    const image = `${config.imageRepository}:${config.version}`
     const containerName = `db-${config.type}-${config.name}`
     
     const env = [
