@@ -39,7 +39,10 @@ import {
   EyeSlashIcon,
   FolderIcon,
   SyncAltIcon,
-  SaveIcon
+  SaveIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  SpinnerIcon
 } from '@patternfly/react-icons'
 import { useDeployDatabase } from '../hooks/usePodman'
 import { databaseTemplates, generateRandomPassword, validateDatabaseName, validatePort } from '../utils/databaseTemplates'
@@ -77,8 +80,78 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showDirectoryBrowser, setShowDirectoryBrowser] = useState(false)
+  const [portStatus, setPortStatus] = useState<{
+    checking: boolean
+    available: boolean | null
+    message: string
+  }>({
+    checking: false,
+    available: null,
+    message: ''
+  })
 
   const deployMutation = useDeployDatabase()
+
+  const checkPortAvailability = async (port: number) => {
+    if (!port || port < 1024 || port > 65535) {
+      setPortStatus({
+        checking: false,
+        available: null,
+        message: ''
+      })
+      return
+    }
+
+    setPortStatus({
+      checking: true,
+      available: null,
+      message: 'Checking port availability...'
+    })
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/port/check?port=${port}`)
+      const data = await response.json()
+      
+      if (response.ok) {
+        setPortStatus({
+          checking: false,
+          available: data.available,
+          message: data.message
+        })
+        
+        // Update form validation
+        if (!data.available) {
+          setErrors(prev => ({ ...prev, port: `Port ${port} is already in use` }))
+        } else if (errors.port && errors.port.includes('already in use')) {
+          setErrors(prev => ({ ...prev, port: '' }))
+        }
+      } else {
+        setPortStatus({
+          checking: false,
+          available: null,
+          message: data.error || 'Failed to check port availability'
+        })
+      }
+    } catch (error) {
+      console.error('Port check failed:', error)
+      setPortStatus({
+        checking: false,
+        available: null,
+        message: 'Failed to check port availability'
+      })
+    }
+  }
+
+  // Debounced port checking effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (config.port) {
+        checkPortAvailability(config.port)
+      }
+    }, 500) // 500ms delay
+
+    return () => clearTimeout(timeoutId)
+  }, [config.port])
 
   useEffect(() => {
     if (template && template !== selectedTemplate) {
@@ -299,28 +372,71 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                               isRequired
                               fieldId="port"
                             >
-                              <NumberInput
-                                id="port"
-                                value={config.port}
-                                onMinus={() => handleInputChange('port', Math.max(1024, config.port - 1))}
-                                onPlus={() => handleInputChange('port', Math.min(65535, config.port + 1))}
-                                onChange={(event) => {
-                                  const value = parseInt((event.target as HTMLInputElement).value) || 0
-                                  handleInputChange('port', value)
-                                }}
-                                min={1024}
-                                max={65535}
-                                validated={getValidationState('port')}
-                              />
-                              {errors.port && (
-                                <FormHelperText>
-                                  <HelperText>
-                                    <HelperTextItem variant="error">
-                                      {errors.port}
-                                    </HelperTextItem>
-                                  </HelperText>
-                                </FormHelperText>
-                              )}
+                              <InputGroup>
+                                <InputGroupItem isFill>
+                                  <NumberInput
+                                    id="port"
+                                    value={config.port}
+                                    onMinus={() => handleInputChange('port', Math.max(1024, config.port - 1))}
+                                    onPlus={() => handleInputChange('port', Math.min(65535, config.port + 1))}
+                                    onChange={(event) => {
+                                      const value = parseInt((event.target as HTMLInputElement).value) || 0
+                                      handleInputChange('port', value)
+                                    }}
+                                    min={1024}
+                                    max={65535}
+                                    validated={getValidationState('port')}
+                                  />
+                                </InputGroupItem>
+                                <InputGroupItem>
+                                  <div style={{ 
+                                    padding: '8px 12px', 
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    minWidth: '120px',
+                                    fontSize: '14px'
+                                  }}>
+                                    {portStatus.checking ? (
+                                      <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                                        <FlexItem>
+                                          <SpinnerIcon className="pf-v6-c-spinner pf-m-md" />
+                                        </FlexItem>
+                                        <FlexItem>
+                                          <span style={{ color: 'var(--pf-v6-global--Color--text--primary--default)' }}>
+                                            Checking...
+                                          </span>
+                                        </FlexItem>
+                                      </Flex>
+                                    ) : portStatus.available === true ? (
+                                      <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                                        <FlexItem>
+                                          <CheckCircleIcon style={{ color: 'var(--pf-t--global--icon--color--status--success--default)' }} />
+                                        </FlexItem>
+                                        <FlexItem>
+                                          <span style={{ color: 'var(--pf-t--global--text--color--status--success--default)' }}>
+                                            Available
+                                          </span>
+                                        </FlexItem>
+                                      </Flex>
+                                    ) : portStatus.available === false ? (
+                                      <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                                        <FlexItem>
+                                          <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--icon--color--status--danger--default)' }} />
+                                        </FlexItem>
+                                        <FlexItem>
+                                          <span style={{ color: 'var(--pf-t--global--text--color--status--danger--default)' }}>
+                                            In Use
+                                          </span>
+                                        </FlexItem>
+                                      </Flex>
+                                    ) : (
+                                      <span style={{ color: 'var(--pf-v6-global--Color--text--secondary--default)' }}>
+                                        Enter port
+                                      </span>
+                                    )}
+                                  </div>
+                                </InputGroupItem>
+                              </InputGroup>
                             </FormGroup>
                           </GridItem>
                         </Grid>

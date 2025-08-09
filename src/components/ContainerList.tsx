@@ -386,13 +386,67 @@ export default function ContainerList() {
             </Toolbar>
           </FlexItem>
           <FlexItem>
-            <Table aria-label={title} variant="compact" isStriped>
+            <Table 
+              aria-label={title} 
+              variant="compact" 
+              isStriped
+              style={{
+                border: '1px solid var(--pf-v6-global--BorderColor--default)',
+                borderRadius: '8px',
+                overflow: 'hidden'
+              }}
+            >
               <Thead>
-                <Tr>
-                  <Th width={40}>Container</Th>
-                  <Th width={20}>Status</Th>
-                  <Th width={20}>Ports</Th>
-                  {showActions && <Th width={20}>Actions</Th>}
+                <Tr style={{ 
+                  backgroundColor: 'var(--pf-v6-global--BackgroundColor--color-200)',
+                  borderBottom: '2px solid var(--pf-v6-global--BorderColor--default)'
+                }}>
+                  <Th 
+                    width={40}
+                    style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600',
+                      color: 'var(--pf-v6-global--Color--text--primary--default)',
+                      padding: '16px 12px'
+                    }}
+                  >
+                    Container
+                  </Th>
+                  <Th 
+                    width={20}
+                    style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600',
+                      color: 'var(--pf-v6-global--Color--text--primary--default)',
+                      padding: '16px 12px'
+                    }}
+                  >
+                    Status
+                  </Th>
+                  <Th 
+                    width={20}
+                    style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600',
+                      color: 'var(--pf-v6-global--Color--text--primary--default)',
+                      padding: '16px 12px'
+                    }}
+                  >
+                    Ports
+                  </Th>
+                  {showActions && (
+                    <Th 
+                      width={20}
+                      style={{ 
+                        fontSize: '16px', 
+                        fontWeight: '600',
+                        color: 'var(--pf-v6-global--Color--text--primary--default)',
+                        padding: '16px 12px'
+                      }}
+                    >
+                      Actions
+                    </Th>
+                  )}
                 </Tr>
               </Thead>
               <Tbody>

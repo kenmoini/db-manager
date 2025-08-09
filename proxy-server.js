@@ -353,6 +353,60 @@ app.post('/api/filesystem/mkdir', async (req, res) => {
   }
 });
 
+// Port availability check endpoint
+app.get('/api/port/check', async (req, res) => {
+  try {
+    const port = parseInt(req.query.port);
+    
+    if (!port || port < 1 || port > 65535) {
+      return res.status(400).json({ 
+        error: 'Invalid port number. Port must be between 1 and 65535' 
+      });
+    }
+    
+    // Check if port is in use by attempting to create a server on it
+    const checkPortAvailability = (portNumber) => {
+      return new Promise((resolve) => {
+        const server = net.createServer();
+        
+        server.listen(portNumber, (err) => {
+          if (err) {
+            resolve(false); // Port is in use
+          } else {
+            server.close(() => {
+              resolve(true); // Port is available
+            });
+          }
+        });
+        
+        server.on('error', () => {
+          resolve(false); // Port is in use or there's an error
+        });
+      });
+    };
+    
+    const isAvailable = await checkPortAvailability(port);
+    
+    console.log(`🔍 Port ${port} availability check: ${isAvailable ? 'available' : 'in use'}`);
+    
+    res.json({
+      port: port,
+      available: isAvailable,
+      status: isAvailable ? 'available' : 'in_use',
+      message: isAvailable 
+        ? `Port ${port} is available` 
+        : `Port ${port} is already in use`
+    });
+    
+  } catch (error) {
+    console.error(`❌ Port check error: ${error.message}`);
+    res.status(500).json({
+      error: 'Port Check Error',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
