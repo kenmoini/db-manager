@@ -8,13 +8,23 @@ import path from 'path';
 import fs from 'fs';
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '127.0.0.1';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Enable CORS for frontend requests
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
-  credentials: true
-}));
+// Configure CORS based on environment
+const corsOptions = NODE_ENV === 'production' 
+  ? {
+      origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false,
+      credentials: true
+    }
+  : {
+      origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+      credentials: true
+    };
+
+// Enable CORS
+app.use(cors(corsOptions));
 
 // Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '50mb' }));
@@ -393,12 +403,31 @@ app.get('/', (req, res) => {
   });
 });
 
+// Serve static files in production
+if (NODE_ENV === 'production') {
+  // Serve the built React app
+  app.use(express.static(path.join(process.cwd(), 'dist')));
+  
+  // Handle React router - send all non-API requests to index.html
+  app.get('*', (req, res) => {
+    // Skip API routes
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+  });
+}
+
 // Start the server
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🚀 Docker/Podman proxy server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Database Manager ${NODE_ENV} server running on http://${HOST}:${PORT}`);
   console.log(`🔗 Proxying requests to Docker/Podman socket: ${DOCKER_SOCKET}`);
-  console.log(`🌐 Frontend CORS enabled for development servers`);
-  console.log(`📋 Health check available at: http://localhost:${PORT}/health`);
+  console.log(`🌐 CORS configured for ${NODE_ENV} environment`);
+  console.log(`📋 Health check available at: http://${HOST}:${PORT}/health`);
+  
+  if (NODE_ENV === 'production') {
+    console.log(`📱 Web interface available at: http://${HOST}:${PORT}`);
+  }
 });
 
 // Graceful shutdown

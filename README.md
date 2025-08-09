@@ -105,6 +105,67 @@ This starts both the proxy server (port 3001) and the React development server (
 4. **Open the application**:
 Navigate to `http://localhost:5173` in your web browser.
 
+## 🐳 Container Deployment
+
+### Building the Container
+
+The application includes a multi-stage Containerfile optimized for production deployment:
+
+```bash
+# Build the container image
+npm run container:build
+
+# Or manually with podman/docker
+podman build -f Containerfile -t db-mgr:latest .
+```
+
+### Running the Container
+
+#### With Docker Socket
+```bash
+# Using npm script
+npm run container:run
+
+# Or manually
+podman run -d \
+  --name db-mgr \
+  -p 8080:8080 \
+  -v /var/run/docker.sock:/var/run/docker.sock:z \
+  db-mgr:latest
+```
+
+#### With Podman Socket
+```bash
+# Using npm script
+npm run container:run:podman
+
+# Or manually
+podman run -d \
+  --name db-mgr \
+  -p 8080:8080 \
+  -v $XDG_RUNTIME_DIR/podman/podman.sock:/var/run/podman.sock:z \
+  db-mgr:latest
+```
+
+### Container Configuration
+
+The container exposes port 8080 and serves both the API and the React frontend. Environment variables:
+
+- **`PORT`**: Server port (default: 8080)
+- **`HOST`**: Bind address (default: 0.0.0.0)
+- **`NODE_ENV`**: Environment mode (production/development)
+- **`CORS_ORIGIN`**: Allowed CORS origins (comma-separated)
+- **`DOCKER_SOCKET`**: Override Docker socket path
+- **`PODMAN_SOCKET`**: Override Podman socket path
+
+### Container Features
+
+- **Multi-stage Build**: Optimized for minimal image size
+- **Non-root User**: Runs as user 1001 for security
+- **Health Checks**: Built-in health monitoring
+- **Static File Serving**: Serves React app in production
+- **UBI8 Base**: Red Hat Universal Base Image for security
+
 ## 📖 Usage Guide
 
 ### Deploying a Database
@@ -203,12 +264,21 @@ db-mgr/
 
 ## 🔧 Available Scripts
 
+### Development
 - **`npm run dev:full`** - Start complete development environment (proxy + frontend)
 - **`npm run dev`** - Start only the React development server
 - **`npm run proxy`** - Start only the proxy server
-- **`npm run build`** - Build application for production
-- **`npm run lint`** - Run ESLint code analysis
 - **`npm run preview`** - Preview production build locally
+
+### Production
+- **`npm run build`** - Build application for production
+- **`npm run start`** - Start production server
+- **`npm run lint`** - Run ESLint code analysis
+
+### Container Operations
+- **`npm run container:build`** - Build container image
+- **`npm run container:run`** - Run container with Docker socket
+- **`npm run container:run:podman`** - Run container with Podman socket
 
 ## 🔒 Security Considerations
 
