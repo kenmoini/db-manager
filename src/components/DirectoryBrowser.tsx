@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import {
   Modal,
   ModalVariant,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
   Button,
   Title,
   Card,
@@ -14,16 +17,22 @@ import {
   Spinner,
   Alert,
   AlertVariant,
-  Breadcrumb,
-  BreadcrumbItem,
   EmptyState,
-  EmptyStateBody
+  EmptyStateBody,
+  TextInput,
+  InputGroup,
+  InputGroupItem,
+  FormGroup,
+  FormHelperText,
+  HelperText,
+  HelperTextItem,
+  ValidatedOptions
 } from '@patternfly/react-core'
 import {
   FolderIcon,
   FolderOpenIcon,
-  HomeIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  PlusIcon
 } from '@patternfly/react-icons'
 
 interface DirectoryItem {
@@ -55,6 +64,10 @@ export default function DirectoryBrowser({
   const [directoryData, setDirectoryData] = useState<DirectoryData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newDirName, setNewDirName] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const fetchDirectory = async (path: string) => {
     setLoading(true)
@@ -98,151 +111,220 @@ export default function DirectoryBrowser({
     onClose()
   }
 
-  const getBreadcrumbItems = () => {
-    const parts = currentPath.split('/').filter(Boolean)
-    const items = [{ name: 'Root', path: '/' }]
-    
-    let buildPath = ''
-    parts.forEach(part => {
-      buildPath += '/' + part
-      items.push({ name: part, path: buildPath })
-    })
-    
-    return items
+  const createDirectory = async () => {
+    if (!newDirName.trim()) {
+      setCreateError('Directory name is required')
+      return
+    }
+
+    setCreating(true)
+    setCreateError(null)
+
+    try {
+      const response = await fetch('http://localhost:3001/api/filesystem/mkdir', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: currentPath,
+          name: newDirName.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create directory')
+      }
+
+      // Reset form and refresh directory listing
+      setNewDirName('')
+      setShowCreateForm(false)
+      fetchDirectory(currentPath)
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setCreating(false)
+    }
   }
+
+  const handleCreateCancel = () => {
+    setShowCreateForm(false)
+    setNewDirName('')
+    setCreateError(null)
+  }
+
 
   return (
     <Modal
       variant={ModalVariant.medium}
-      title="Select Directory"
       isOpen={isOpen}
       onClose={onClose}
     >
-      <div style={{ padding: '2rem' }}>
+      <ModalHeader>
+        <Title headingLevel="h1" size="2xl">
+          Select Directory
+        </Title>
+        <Title headingLevel="h4" size="md" style={{ marginTop: '0.5rem', color: 'var(--pf-v5-global--Color--200)' }}>
+          Current Path: {currentPath}
+        </Title>
+      </ModalHeader>
+
+      <ModalBody>
         <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
-        <FlexItem>
-          <Title headingLevel="h4" size="md">
-            Current Path: {currentPath}
-          </Title>
-        </FlexItem>
 
-        <FlexItem>
-          <Breadcrumb>
-            {getBreadcrumbItems().map((item, index, array) => (
-              <BreadcrumbItem
-                key={item.path}
-                isActive={index === array.length - 1}
-                onClick={() => index < array.length - 1 ? handleDirectoryClick(item.path) : undefined}
-                style={{ cursor: index < array.length - 1 ? 'pointer' : 'default' }}
-              >
-                {index === 0 ? (
-                  <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                    <Icon size="sm">
-                      <HomeIcon />
-                    </Icon>
-                    <span>{item.name}</span>
-                  </Flex>
-                ) : (
-                  item.name
-                )}
-              </BreadcrumbItem>
-            ))}
-          </Breadcrumb>
-        </FlexItem>
+          {error && (
+            <FlexItem>
+              <Alert variant={AlertVariant.danger} title="Error loading directory">
+                {error}
+              </Alert>
+            </FlexItem>
+          )}
 
-        {error && (
           <FlexItem>
-            <Alert variant={AlertVariant.danger} title="Error loading directory">
-              {error}
-            </Alert>
-          </FlexItem>
-        )}
+            <Card>
+              <CardBody>
+                {loading ? (
+                  <Flex justifyContent={{ default: 'justifyContentCenter' }}>
+                    <Spinner size="lg" />
+                  </Flex>
+                ) : directoryData ? (
+                  <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                    {/* Create Directory Form */}
+                    {showCreateForm && (
+                      <FlexItem>
+                        <FormGroup
+                          label="New Directory Name"
+                          fieldId="newDirName"
+                          isRequired
+                        >
+                          <InputGroup>
+                            <InputGroupItem isFill>
+                              <TextInput
+                                id="newDirName"
+                                value={newDirName}
+                                onChange={(_event, value) => setNewDirName(value)}
+                                placeholder="Enter directory name"
+                                validated={createError ? ValidatedOptions.error : ValidatedOptions.default}
+                              />
+                            </InputGroupItem>
+                            <InputGroupItem>
+                              <Button
+                                variant="primary"
+                                onClick={createDirectory}
+                                isDisabled={creating || !newDirName.trim()}
+                                isLoading={creating}
+                              >
+                                Create
+                              </Button>
+                            </InputGroupItem>
+                            <InputGroupItem>
+                              <Button
+                                variant="link"
+                                onClick={handleCreateCancel}
+                                isDisabled={creating}
+                              >
+                                Cancel
+                              </Button>
+                            </InputGroupItem>
+                          </InputGroup>
+                          {createError && (
+                            <FormHelperText>
+                              <HelperText>
+                                <HelperTextItem variant="error">
+                                  {createError}
+                                </HelperTextItem>
+                              </HelperText>
+                            </FormHelperText>
+                          )}
+                        </FormGroup>
+                      </FlexItem>
+                    )}
 
-        <FlexItem>
-          <Card>
-            <CardBody>
-              {loading ? (
-                <Flex justifyContent={{ default: 'justifyContentCenter' }}>
-                  <Spinner size="lg" />
-                </Flex>
-              ) : directoryData ? (
-                <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
-                  {directoryData.parentPath && (
-                    <FlexItem>
-                      <Button
-                        variant="link"
-                        icon={<ArrowLeftIcon />}
-                        onClick={handleParentClick}
-                        style={{ padding: '8px', width: '100%', justifyContent: 'flex-start' }}
-                      >
-                        .. (Parent Directory)
-                      </Button>
-                    </FlexItem>
-                  )}
-                  
-                  {directoryData.directories.length > 0 ? (
-                    <FlexItem>
-                      <List isPlain>
-                        {directoryData.directories.map(dir => (
-                          <ListItem key={dir.path}>
-                            <Button
-                              variant="link"
-                              onClick={() => handleDirectoryClick(dir.path)}
-                              style={{ 
-                                padding: '8px',
-                                width: '100%',
-                                justifyContent: 'flex-start',
-                                textAlign: 'left'
-                              }}
-                            >
-                              <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                                <Icon size="sm">
-                                  <FolderIcon />
-                                </Icon>
-                                <span>{dir.name}</span>
-                              </Flex>
-                            </Button>
-                          </ListItem>
-                        ))}
-                      </List>
-                    </FlexItem>
-                  ) : (
-                    <FlexItem>
-                      <EmptyState>
-                        <Title headingLevel="h4" size="lg">
-                          <Icon size="lg" style={{ marginRight: '8px' }}>
-                            <FolderOpenIcon />
-                          </Icon>
-                          No subdirectories
-                        </Title>
-                        <EmptyStateBody>
-                          This directory contains no subdirectories.
-                        </EmptyStateBody>
-                      </EmptyState>
-                    </FlexItem>
-                  )}
-                </Flex>
-              ) : null}
-            </CardBody>
-          </Card>
-        </FlexItem>
-        
-        <FlexItem>
-          <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }}>
-            <FlexItem>
-              <Button variant="link" onClick={onClose}>
-                Cancel
-              </Button>
-            </FlexItem>
-            <FlexItem>
-              <Button variant="primary" onClick={handleSelect}>
-                Select Current Directory
-              </Button>
-            </FlexItem>
-          </Flex>
-        </FlexItem>
+                    {/* Create Directory Button */}
+                    {!showCreateForm && (
+                      <FlexItem>
+                        <Button
+                          variant="secondary"
+                          icon={<PlusIcon />}
+                          onClick={() => setShowCreateForm(true)}
+                          style={{ width: '100%' }}
+                        >
+                          Create New Directory
+                        </Button>
+                      </FlexItem>
+                    )}
+
+                    {directoryData.parentPath && (
+                      <FlexItem>
+                        <Button
+                          variant="link"
+                          icon={<ArrowLeftIcon />}
+                          onClick={handleParentClick}
+                          style={{ padding: '8px', width: '100%', justifyContent: 'flex-start' }}
+                        >
+                          .. (Parent Directory)
+                        </Button>
+                      </FlexItem>
+                    )}
+                    
+                    {directoryData.directories.length > 0 ? (
+                      <FlexItem>
+                        <List isPlain>
+                          {directoryData.directories.map(dir => (
+                            <ListItem key={dir.path}>
+                              <Button
+                                variant="link"
+                                onClick={() => handleDirectoryClick(dir.path)}
+                                style={{ 
+                                  padding: '8px',
+                                  width: '100%',
+                                  justifyContent: 'flex-start',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                                  <Icon size="sm">
+                                    <FolderIcon />
+                                  </Icon>
+                                  <span>{dir.name}</span>
+                                </Flex>
+                              </Button>
+                            </ListItem>
+                          ))}
+                        </List>
+                      </FlexItem>
+                    ) : (
+                      <FlexItem>
+                        <EmptyState>
+                          <Title headingLevel="h4" size="lg">
+                            <Icon size="lg" style={{ marginRight: '8px' }}>
+                              <FolderOpenIcon />
+                            </Icon>
+                            No subdirectories
+                          </Title>
+                          <EmptyStateBody>
+                            This directory contains no subdirectories.
+                          </EmptyStateBody>
+                        </EmptyState>
+                      </FlexItem>
+                    )}
+                  </Flex>
+                ) : null}
+              </CardBody>
+            </Card>
+          </FlexItem>
         </Flex>
-      </div>
+      </ModalBody>
+
+      <ModalFooter>
+        <Button variant="primary" onClick={handleSelect}>
+          Select Current Directory
+        </Button>
+        <Button variant="link" onClick={onClose}>
+          Cancel
+        </Button>
+      </ModalFooter>
     </Modal>
   )
 }

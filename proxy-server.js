@@ -286,6 +286,63 @@ app.get('/api/filesystem', async (req, res) => {
   }
 });
 
+// Directory creation endpoint
+app.post('/api/filesystem/mkdir', async (req, res) => {
+  try {
+    const { path: dirPath, name } = req.body;
+    
+    if (!dirPath || !name) {
+      return res.status(400).json({ error: 'Path and name are required' });
+    }
+    
+    // Security check - prevent directory traversal attacks
+    const safePath = path.resolve(dirPath);
+    if (!safePath.startsWith('/')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    
+    // Validate directory name
+    if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+      return res.status(400).json({ error: 'Invalid directory name. Only letters, numbers, dots, underscores, and hyphens are allowed.' });
+    }
+    
+    // Check if parent path exists and is a directory
+    if (!fs.existsSync(safePath)) {
+      return res.status(404).json({ error: 'Parent path not found' });
+    }
+    
+    const parentStats = fs.statSync(safePath);
+    if (!parentStats.isDirectory()) {
+      return res.status(400).json({ error: 'Parent path is not a directory' });
+    }
+    
+    // Create the new directory path
+    const newDirPath = path.join(safePath, name);
+    
+    // Check if directory already exists
+    if (fs.existsSync(newDirPath)) {
+      return res.status(409).json({ error: 'Directory already exists' });
+    }
+    
+    // Create the directory
+    fs.mkdirSync(newDirPath);
+    
+    console.log(`📁 Created directory: ${newDirPath}`);
+    res.json({ 
+      success: true, 
+      path: newDirPath,
+      message: `Directory '${name}' created successfully`
+    });
+    
+  } catch (error) {
+    console.error(`❌ Directory creation error: ${error.message}`);
+    res.status(500).json({
+      error: 'Directory Creation Error',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
