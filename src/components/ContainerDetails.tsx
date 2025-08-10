@@ -264,9 +264,6 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             })()}
           </CardBody>
         </Card>
-      </GridItem>
-
-      <GridItem xl={4} lg={12} md={12}>
         <Card>
           <CardHeader>
             <CardTitle>
@@ -331,6 +328,10 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             )}
           </CardBody>
         </Card>
+      </GridItem>
+
+      <GridItem xl={4} lg={12} md={12}>
+        {renderStatsTab()}
       </GridItem>
     </Grid>
   )
@@ -515,13 +516,12 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
     const cpuPercent = calculateCpuPercent()
 
     return (
-      <Grid hasGutter>
-        <GridItem xl={3} lg={6} md={6} sm={12}>
-          <Card>
+      <div>
+          <Card isFullHeight={true}>
             <CardHeader>
               <CardTitle>CPU Usage</CardTitle>
             </CardHeader>
-            <CardBody>
+            <CardBody isFilled={true}>
               {statsLoading ? (
                 <Spinner size="lg" />
               ) : cpuPercent !== undefined ? (
@@ -533,14 +533,11 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
               )}
             </CardBody>
           </Card>
-        </GridItem>
-        
-        <GridItem xl={3} lg={6} md={6} sm={12}>
           <Card>
             <CardHeader>
               <CardTitle>Memory Usage</CardTitle>
             </CardHeader>
-            <CardBody>
+            <CardBody isFilled={true}>
               {statsLoading ? (
                 <Spinner size="lg" />
               ) : memoryUsage > 0 ? (
@@ -561,14 +558,11 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
               )}
             </CardBody>
           </Card>
-        </GridItem>
-        
-        <GridItem xl={3} lg={6} md={6} sm={12}>
           <Card>
             <CardHeader>
               <CardTitle>Network I/O</CardTitle>
             </CardHeader>
-            <CardBody>
+            <CardBody isFilled={true}>
               {statsLoading ? (
                 <Spinner size="lg" />
               ) : networkStats.rx > 0 || networkStats.tx > 0 ? (
@@ -589,14 +583,11 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
               )}
             </CardBody>
           </Card>
-        </GridItem>
-        
-        <GridItem xl={3} lg={6} md={6} sm={12}>
           <Card>
             <CardHeader>
               <CardTitle>Block I/O</CardTitle>
             </CardHeader>
-            <CardBody>
+            <CardBody isFilled={true}>
               {statsLoading ? (
                 <Spinner size="lg" />
               ) : blockIoStats.read > 0 || blockIoStats.write > 0 ? (
@@ -616,9 +607,7 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
                 <Content>N/A</Content>
               )}
             </CardBody>
-          </Card>
-        </GridItem>
-      </Grid>
+          </Card></div>
     )
   }
 
@@ -770,7 +759,6 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             </Toolbar>
           </CardBody>
         </Card>
-        {renderStatsTab()}
       </FlexItem>
 
       {/* Tabs Content */}
