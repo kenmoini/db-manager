@@ -6,7 +6,6 @@ import {
   Nav,
   NavList,
   NavItem,
-  NavItemSeparator,
   Masthead,
   MastheadMain,
   MastheadBrand,

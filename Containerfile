@@ -19,11 +19,11 @@ USER root
 RUN dnf update -y && \
     dnf install -y \
       git \
-      python3 \
       make \
       gcc \
       gcc-c++ && \
-    dnf clean all
+    dnf clean all && \
+    rm -rf /var/cache/dnf/* /tmp/* /var/tmp/*
 
 # Switch back to default user
 USER 1001

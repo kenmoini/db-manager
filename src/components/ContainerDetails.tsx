@@ -523,8 +523,8 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
                 Back to List
               </Button>
             </ToolbarItem>
-            <ToolbarItem alignment={{ default: 'alignRight' }}>
-              <Flex gap={{ default: 'gapSm' }}>
+            <ToolbarItem>
+              <Flex gap={{ default: 'gapSm' }} style={{ marginLeft: 'auto' }}>
                 {container.state === 'running' ? (
                   <Button
                     variant="secondary"

@@ -7,15 +7,11 @@ import {
   CardHeader,
   CardTitle,
   CardBody,
-  CardFooter,
   Button,
   Flex,
   FlexItem,
   Label,
   Icon,
-  Toolbar,
-  ToolbarContent,
-  ToolbarItem,
   Content,
   ContentVariants
 } from '@patternfly/react-core'

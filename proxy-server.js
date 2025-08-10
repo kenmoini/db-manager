@@ -8,6 +8,58 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
+// Logging functionality
+const LOG_FILE_PATH = path.join(process.cwd(), 'proxy-server.log');
+
+// Create a write stream for the log file (append mode)
+const logStream = fs.createWriteStream(LOG_FILE_PATH, { flags: 'a' });
+
+// Store original console methods before overriding
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+// Enhanced logging function that writes to both console and file
+function log(level, message, ...args) {
+  const timestamp = new Date().toISOString();
+  const formattedMessage = args.length > 0 ? `${message} ${args.join(' ')}` : message;
+  const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${formattedMessage}`;
+  
+  // Write to console with original formatting
+  if (level === 'error') {
+    originalConsoleError(message, ...args);
+  } else if (level === 'warn') {
+    originalConsoleWarn(message, ...args);
+  } else {
+    originalConsoleLog(message, ...args);
+  }
+  
+  // Write to log file (strip ANSI codes and emojis for cleaner file logs)
+  const cleanLogEntry = logEntry.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '').replace(/[^\x00-\x7F]/g, '');
+  logStream.write(cleanLogEntry + '\n');
+}
+
+// Override console methods to use our logging function
+console.log = (...args) => log('info', ...args);
+console.error = (...args) => log('error', ...args);
+console.warn = (...args) => log('warn', ...args);
+
+// Log initialization message
+console.log(`📝 Logging initialized - writing to ${LOG_FILE_PATH}`);
+
+// Ensure log stream is properly closed on exit
+process.on('SIGINT', () => {
+  logStream.end();
+  originalConsoleLog('\n👋 Shutting down proxy server...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  logStream.end();
+  originalConsoleLog('\n👋 Shutting down proxy server...');
+  process.exit(0);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -542,7 +594,7 @@ app.post('/api/container/user-info', async (req, res) => {
     }
     
     // Run container to get user info
-    const command = `${containerCmd} run --rm ${image} id`;
+    const command = `${containerCmd} run --rm -it ${image} id`;
     console.log(`📋 Running command: ${command}`);
     
     const output = execSync(command, { encoding: 'utf8', timeout: 30000 }).trim();
@@ -652,13 +704,3 @@ app.listen(PORT, HOST, () => {
   }
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down proxy server...');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  console.log('\n👋 Shutting down proxy server...');
-  process.exit(0);
-});

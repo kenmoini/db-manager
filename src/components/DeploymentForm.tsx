@@ -34,7 +34,6 @@ import {
   ContentVariants
 } from '@patternfly/react-core'
 import {
-  ArrowLeftIcon,
   EyeIcon,
   EyeSlashIcon,
   FolderIcon,
@@ -62,7 +61,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
     return defaultVersionObj?.containerTag || template.defaultVersion
   }
 
-  const generateDatabaseName = (dbType: string) => {
+  const generateDatabaseName = () => {
     return uniqueNamesGenerator({
       dictionaries: [adjectives, colors, animals],
       separator: '-',
@@ -76,7 +75,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
   )
   const [config, setConfig] = useState<DatabaseConfig>({
     type: selectedTemplate.type,
-    name: generateDatabaseName(selectedTemplate.type),
+    name: generateDatabaseName(),
     version: getDefaultVersion(selectedTemplate),
     rootPassword: '',
     port: selectedTemplate.defaultPort,
@@ -169,7 +168,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
       setConfig(prev => ({
         ...prev,
         type: template.type,
-        name: generateDatabaseName(template.type),
+        name: generateDatabaseName(),
         version: getDefaultVersion(template),
         port: template.defaultPort,
         imageRepository: template.imageRepository,
@@ -345,7 +344,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                 <InputGroupItem>
                                   <Button
                                     variant="control"
-                                    onClick={() => handleInputChange('name', generateDatabaseName(selectedTemplate.type))}
+                                    onClick={() => handleInputChange('name', generateDatabaseName())}
                                     icon={<SyncAltIcon />}
                                     aria-label="Generate new name"
                                   />

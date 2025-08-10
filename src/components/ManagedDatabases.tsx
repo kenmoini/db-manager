@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Title,
   Card,
@@ -17,7 +17,6 @@ import {
   Content,
   ContentVariants,
   Label,
-  LabelGroup
 } from '@patternfly/react-core'
 import {
   Table,
@@ -85,7 +84,7 @@ export default function ManagedDatabases() {
       // For now, we'll simulate the database connection
       // In a real implementation, this would make an API call to a backend service
       // that connects to the database and lists the databases
-      const mockDatabases = await simulateDatabaseConnection(dbType, port)
+      const mockDatabases = await simulateDatabaseConnection(dbType)
       setDatabases(mockDatabases)
     } catch (error) {
       console.error('Error loading databases:', error)
@@ -120,7 +119,7 @@ export default function ManagedDatabases() {
   }
 
   // Simulate database connection - in a real app this would be a backend API call
-  const simulateDatabaseConnection = async (dbType: string, port: number): Promise<DatabaseInfo[]> => {
+  const simulateDatabaseConnection = async (dbType: string): Promise<DatabaseInfo[]> => {
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 1500))
     
@@ -155,7 +154,7 @@ export default function ManagedDatabases() {
     const managedName = container.labels?.['db-manager.database-name']
     if (managedName) return managedName
     
-    const containerName = container.name || container.names?.[0]
+    const containerName = container.name
     return containerName?.replace(/^\//, '') || 'Unnamed'
   }
 

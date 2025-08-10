@@ -475,7 +475,6 @@ export default function ContainerList({ onNavigateToDeploy }: ContainerListProps
               const containerType = getContainerType(container)
               const containerIcon = getContainerIcon(container)
               const isManaged = podmanService.isManagedContainer(container)
-              const isDatabase = podmanService.isDatabaseContainer(container)
             
               return (
                 <Tr 
@@ -543,7 +542,7 @@ export default function ContainerList({ onNavigateToDeploy }: ContainerListProps
                                 )
                               }
 
-                              const validPorts = ports.filter(port => {
+                              const validPorts = ports.filter((port: any) => {
                                 // Handle both Docker API format and our Port interface
                                 return port && (port.privatePort || port.PrivatePort || port.ContainerPort)
                               })
@@ -558,7 +557,7 @@ export default function ContainerList({ onNavigateToDeploy }: ContainerListProps
 
                               return (
                                 <LabelGroup>
-                                  {validPorts.slice(0, 3).map((port, index) => {
+                                  {validPorts.slice(0, 3).map((port: any, index: number) => {
                                     // Handle different API response formats
                                     const privatePort = port.privatePort || port.PrivatePort || port.ContainerPort
                                     const publicPort = port.publicPort || port.PublicPort
