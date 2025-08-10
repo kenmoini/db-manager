@@ -75,6 +75,7 @@ interface UserInfo {
 interface ConnectionCredentials {
   username: string
   password: string
+  database: string
 }
 
 export default function ManagedDatabases() {
@@ -107,10 +108,22 @@ export default function ManagedDatabases() {
   const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [createUserError, setCreateUserError] = useState<string | null>(null)
   
+  // Add database modal state
+  const [isAddDatabaseModalOpen, setIsAddDatabaseModalOpen] = useState(false)
+  const [newDatabase, setNewDatabase] = useState({
+    name: '',
+    encoding: 'UTF8', // Default for PostgreSQL
+    collation: '', // Default empty, will use database default
+    owner: '' // Default empty, will use current user
+  })
+  const [isCreatingDatabase, setIsCreatingDatabase] = useState(false)
+  const [createDatabaseError, setCreateDatabaseError] = useState<string | null>(null)
+  
   // Connection credentials
   const [credentials, setCredentials] = useState<ConnectionCredentials>({
     username: 'root',
-    password: ''
+    password: '',
+    database: ''
   })
   
   const { data: containers, isLoading: isLoadingContainers, error: containersError } = useAllContainers()
@@ -290,6 +303,58 @@ export default function ManagedDatabases() {
       setCreateUserError(error instanceof Error ? error.message : 'Failed to create user')
     } finally {
       setIsCreatingUser(false)
+    }
+  }
+  
+  const handleCreateDatabase = async () => {
+    if (!selectedContainer || !newDatabase.name) return
+    
+    setIsCreatingDatabase(true)
+    setCreateDatabaseError(null)
+    
+    try {
+      const dbType = selectedContainer.labels?.['db-manager.database-type']
+      const port = getContainerPort(selectedContainer)
+      
+      if (!port) {
+        throw new Error('No exposed port found for database container')
+      }
+      
+      const response = await fetch('http://localhost:3000/api/database/create-database', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: 'localhost',
+          port: port,
+          username: credentials.username,
+          password: credentials.password,
+          type: dbType,
+          databaseName: newDatabase.name,
+          encoding: dbType === 'postgresql' ? newDatabase.encoding : undefined,
+          collation: newDatabase.collation || undefined,
+          owner: dbType === 'postgresql' ? (newDatabase.owner || credentials.username) : undefined
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to create database')
+      }
+      
+      // Close modal and refresh databases list
+      setIsAddDatabaseModalOpen(false)
+      setNewDatabase({ name: '', encoding: 'UTF8', collation: '', owner: '' })
+      
+      // Refresh the connection to get updated database list
+      handleConnect()
+    } catch (error) {
+      console.error('Error creating database:', error)
+      setCreateDatabaseError(error instanceof Error ? error.message : 'Failed to create database')
+    } finally {
+      setIsCreatingDatabase(false)
     }
   }
   
@@ -516,6 +581,22 @@ export default function ManagedDatabases() {
 
                   {selectedContainer && (
                     <>
+
+                      {selectedContainer.labels?.['db-manager.database-type'] === 'postgresql' && (
+                      <FlexItem>
+                        <FormGroup label="Database" isRequired>
+                          <TextInput
+                            value={credentials.database}
+                            onChange={(_event, value) => setCredentials(prev => ({ ...prev, database: value }))}
+                            type="text"
+                            aria-label="Database username"
+                            style={{ width: '150px' }}
+                            readOnly
+                            onFocus={(e) => e.target.removeAttribute('readonly')}
+                          />
+                        </FormGroup>
+                      </FlexItem>
+                      )}
                       <FlexItem>
                         <FormGroup label="Username" isRequired>
                           <TextInput
@@ -604,10 +685,7 @@ export default function ManagedDatabases() {
                   <Button
                     variant="primary"
                     icon={<PlusCircleIcon />}
-                    onClick={() => {
-                      // TODO: Implement add database functionality
-                      console.log('Add database clicked for:', selectedContainer)
-                    }}
+                    onClick={() => setIsAddDatabaseModalOpen(true)}
                   >
                     Add Database
                   </Button>
@@ -754,16 +832,14 @@ export default function ManagedDatabases() {
 
       {isConnected && (
         <FlexItem>
-          <Card>
-            <CardBody>
               <ExpandableSection
-                toggleText="SQL Command Executor"
+                toggleText={`SQL Command Executor`}
                 onToggle={(_event, isExpanded) => setSqlExecutorExpanded(isExpanded)}
                 isExpanded={sqlExecutorExpanded}
               >
                 <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }} style={{ marginTop: '1rem' }}>
                   <FlexItem>
-                    <FormGroup label="SQL Command" fieldId="sql-command">
+                    <FormGroup label={`SQL Command - Run as current user ${credentials.username}`} fieldId="sql-command">
                       <TextArea
                         id="sql-command"
                         value={sqlCommand}
@@ -801,8 +877,6 @@ export default function ManagedDatabases() {
                   )}
                 </Flex>
               </ExpandableSection>
-            </CardBody>
-          </Card>
         </FlexItem>
       )}
 
@@ -888,6 +962,143 @@ export default function ManagedDatabases() {
               setIsAddUserModalOpen(false)
               setNewUser({ username: '', password: '', host: '%' })
               setCreateUserError(null)
+            }}
+          >
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Add Database Modal */}
+      <Modal
+        variant={ModalVariant.small}
+        isOpen={isAddDatabaseModalOpen}
+        onClose={() => {
+          setIsAddDatabaseModalOpen(false)
+          setNewDatabase({ name: '', encoding: 'UTF8', collation: '', owner: '' })
+          setCreateDatabaseError(null)
+        }}
+      >
+        <ModalHeader title="Create Database" />
+        <ModalBody>
+          <Form>
+            <FormGroup label="Database Name" isRequired fieldId="new-database-name">
+              <TextInput
+                id="new-database-name"
+                value={newDatabase.name}
+                onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, name: value }))}
+                type="text"
+                aria-label="New database name"
+                isRequired
+              />
+            </FormGroup>
+            
+            {selectedContainer?.labels?.['db-manager.database-type'] === 'postgresql' && (
+              <>
+                <FormGroup label="Encoding" fieldId="new-database-encoding">
+                  <TextInput
+                    id="new-database-encoding"
+                    value={newDatabase.encoding}
+                    onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, encoding: value }))}
+                    type="text"
+                    aria-label="Database encoding"
+                    placeholder="UTF8"
+                  />
+                  <Content component={ContentVariants.small}>
+                    Character encoding for the database (e.g., UTF8, LATIN1)
+                  </Content>
+                </FormGroup>
+                
+                <FormGroup label="Collation" fieldId="new-database-collation">
+                  <TextInput
+                    id="new-database-collation"
+                    value={newDatabase.collation}
+                    onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, collation: value }))}
+                    type="text"
+                    aria-label="Database collation"
+                    placeholder="Default"
+                  />
+                  <Content component={ContentVariants.small}>
+                    Collation order (leave empty for default)
+                  </Content>
+                </FormGroup>
+                
+                <FormGroup label="Owner" fieldId="new-database-owner">
+                  <TextInput
+                    id="new-database-owner"
+                    value={newDatabase.owner}
+                    onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, owner: value }))}
+                    type="text"
+                    aria-label="Database owner"
+                    placeholder={credentials.username}
+                  />
+                  <Content component={ContentVariants.small}>
+                    Database owner (defaults to current user)
+                  </Content>
+                </FormGroup>
+              </>
+            )}
+            
+            {selectedContainer?.labels?.['db-manager.database-type'] === 'mariadb' && (
+              <>
+                <FormGroup label="Character Set" fieldId="new-database-charset">
+                  <TextInput
+                    id="new-database-charset"
+                    value={newDatabase.encoding}
+                    onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, encoding: value }))}
+                    type="text"
+                    aria-label="Database character set"
+                    placeholder="utf8mb4"
+                  />
+                  <Content component={ContentVariants.small}>
+                    Character set for the database (e.g., utf8mb4, latin1)
+                  </Content>
+                </FormGroup>
+                
+                <FormGroup label="Collation" fieldId="new-database-collation-mysql">
+                  <TextInput
+                    id="new-database-collation-mysql"
+                    value={newDatabase.collation}
+                    onChange={(_event, value) => setNewDatabase(prev => ({ ...prev, collation: value }))}
+                    type="text"
+                    aria-label="Database collation"
+                    placeholder="utf8mb4_general_ci"
+                  />
+                  <Content component={ContentVariants.small}>
+                    Collation for the database (e.g., utf8mb4_general_ci)
+                  </Content>
+                </FormGroup>
+              </>
+            )}
+            
+            {createDatabaseError && (
+              <Alert
+                variant={AlertVariant.danger}
+                title="Failed to create database"
+                isInline
+              >
+                {createDatabaseError}
+              </Alert>
+            )}
+          </Form>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            key="create"
+            variant="primary"
+            onClick={handleCreateDatabase}
+            isDisabled={!newDatabase.name || isCreatingDatabase}
+            isLoading={isCreatingDatabase}
+          >
+            Create Database
+          </Button>
+          <Button
+            key="cancel"
+            variant="link"
+            onClick={() => {
+              setIsAddDatabaseModalOpen(false)
+              setNewDatabase({ name: '', encoding: 'UTF8', collation: '', owner: '' })
+              setCreateDatabaseError(null)
             }}
           >
             Cancel

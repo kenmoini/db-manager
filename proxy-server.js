@@ -9,8 +9,7 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
-import pg from 'pg';
-const { Client: PgClient } = pg;
+import { createPool, sql } from 'slonik';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -433,19 +432,12 @@ app.post('/api/database/connect', async (req, res) => {
         message: 'Successfully connected to MariaDB/MySQL' 
       });
     } else if (type === 'postgresql') {
-      // Connect to PostgreSQL
-      const client = new PgClient({
-        host,
-        port: parseInt(port),
-        user: username,
-        password: password || '',
-        database: database || 'postgres'
-      });
-      
-      await client.connect();
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/${database || 'postgres'}`; 
+      const pool = await createPool(connectionString);
       
       // Get databases with additional info
-      const result = await client.query(`
+      const result = await pool.any(sql.unsafe`
         SELECT datname as name, 
                pg_size_pretty(pg_database_size(datname)) as size,
                datcollate as collation,
@@ -456,11 +448,11 @@ app.post('/api/database/connect', async (req, res) => {
         ORDER BY datname
       `);
       
-      await client.end();
+      await pool.end();
       
-      res.json({ 
+      res.json({
         success: true, 
-        databases: result.rows,
+        databases: result,
         message: 'Successfully connected to PostgreSQL' 
       });
     } else {
@@ -561,19 +553,12 @@ app.post('/api/database/users', async (req, res) => {
         message: 'Successfully fetched MariaDB/MySQL users' 
       });
     } else if (type === 'postgresql') {
-      // Connect to PostgreSQL
-      const client = new PgClient({
-        host,
-        port: parseInt(port),
-        user: username,
-        password: password || '',
-        database: 'postgres'
-      });
-      
-      await client.connect();
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/postgres`;
+      const pool = await createPool(connectionString);
       
       // Get users with their privileges, excluding system users
-      const result = await client.query(`
+      const result = await pool.any(sql.unsafe`
         SELECT 
           usename as username,
           CASE 
@@ -594,11 +579,11 @@ app.post('/api/database/users', async (req, res) => {
         ORDER BY usename
       `);
       
-      await client.end();
+      await pool.end();
       
       res.json({ 
         success: true, 
-        users: result.rows,
+        users: result,
         message: 'Successfully fetched PostgreSQL users' 
       });
     } else {
@@ -654,23 +639,17 @@ app.post('/api/database/create-user', async (req, res) => {
         message: `User '${newUsername}'@'${userHost}' created successfully` 
       });
     } else if (type === 'postgresql') {
-      const client = new PgClient({
-        host,
-        port: parseInt(port),
-        user: username,
-        password: password || ''
-      });
-      
-      await client.connect();
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/postgres`;
+      const pool = await createPool(connectionString);
       
       // PostgreSQL uses different syntax and doesn't have host-based users
-      // Use parameterized queries with proper escaping
-      await client.query(
-        `CREATE USER ${client.escapeIdentifier(newUsername)} WITH PASSWORD $1`,
-        [newPassword]
-      );
-      
-      await client.end();
+      // Slonik automatically handles parameterization and SQL injection prevention
+      await pool.query(sql.unsafe`
+        CREATE USER ${sql.identifier([newUsername])} WITH PASSWORD ${sql.literalValue(newPassword)}
+      `);
+
+      await pool.end();
       
       res.json({ 
         success: true, 
@@ -729,30 +708,25 @@ app.post('/api/database/execute', async (req, res) => {
         });
       }
     } else if (type === 'postgresql') {
-      const client = new PgClient({
-        host,
-        port: parseInt(port),
-        user: username,
-        password: password || ''
-      });
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/postgres`;
+      const pool = await createPool(connectionString);
       
-      await client.connect();
-      const result = await client.query(query);
-      await client.end();
+      const result = await pool.any(sql.unsafe`${query}`);
+      await pool.end();
       
       // Format response based on query result
-      if (result.rows && result.rows.length > 0) {
+      if (result && result.length > 0) {
         res.json({ 
           success: true, 
-          rows: result.rows,
-          rowCount: result.rowCount
+          rows: result,
+          message: `Query executed successfully. ${result.length} rows returned.`
         });
       } else {
         res.json({ 
           success: true, 
-          message: `Query executed successfully. ${result.rowCount || 0} rows affected.`,
-          rowCount: result.rowCount,
-          command: result.command
+          message: 'Query executed successfully',
+          rows: result || []
         });
       }
     } else {
@@ -789,22 +763,17 @@ app.post('/api/database/query', async (req, res) => {
       
       res.json({ success: true, rows, fields });
     } else if (type === 'postgresql') {
-      const client = new PgClient({
-        host,
-        port: parseInt(port),
-        user: username,
-        password: password || '',
-        database
-      });
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/${database}`;
+      const pool = await createPool(connectionString);
       
-      await client.connect();
-      const result = await client.query(query);
-      await client.end();
+      const result = await pool.any(sql.unsafe`${query}`);
+      await pool.end();
       
       res.json({ 
         success: true, 
-        rows: result.rows, 
-        fields: result.fields 
+        rows: result, 
+        fields: [] 
       });
     } else {
       res.status(400).json({ error: `Unsupported database type: ${type}` });
