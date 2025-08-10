@@ -456,112 +456,171 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
     )
   }
 
-  const renderStatsTab = () => (
-    <Grid hasGutter>
-      <GridItem xl={3} lg={6} md={6} sm={12}>
-        <Card>
-          <CardHeader>
-            <CardTitle>CPU Usage</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {statsLoading ? (
-              <Spinner size="lg" />
-            ) : stats?.cpu_percent !== undefined ? (
-              <Title headingLevel="h2" size="2xl">
-                {stats.cpu_percent.toFixed(2)}%
-              </Title>
-            ) : (
-              <Content>N/A</Content>
-            )}
-          </CardBody>
-        </Card>
-      </GridItem>
+  const renderStatsTab = () => {
+    // Calculate CPU percentage from Docker stats
+    const calculateCpuPercent = () => {
+      if (!stats?.cpu_stats || !stats?.precpu_stats) return undefined
       
-      <GridItem xl={3} lg={6} md={6} sm={12}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Memory Usage</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {statsLoading ? (
-              <Spinner size="lg" />
-            ) : stats?.memory ? (
-              <Flex direction={{ default: 'column' }}>
-                <FlexItem>
-                  <Title headingLevel="h2" size="2xl">
-                    {formatBytes(stats.memory.usage)}
-                  </Title>
-                </FlexItem>
-                <FlexItem>
-                  <Content component={ContentVariants.small}>
-                    / {formatBytes(stats.memory.limit)}
-                  </Content>
-                </FlexItem>
-              </Flex>
-            ) : (
-              <Content>N/A</Content>
-            )}
-          </CardBody>
-        </Card>
-      </GridItem>
+      const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage
+      const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage
+      const cpuCount = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1
       
-      <GridItem xl={3} lg={6} md={6} sm={12}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Network I/O</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {statsLoading ? (
-              <Spinner size="lg" />
-            ) : stats?.networks ? (
-              <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
-                <FlexItem>
-                  <Content>
-                    <strong>RX:</strong> {formatBytes(stats.networks.rx_bytes || 0)}
-                  </Content>
-                </FlexItem>
-                <FlexItem>
-                  <Content>
-                    <strong>TX:</strong> {formatBytes(stats.networks.tx_bytes || 0)}
-                  </Content>
-                </FlexItem>
-              </Flex>
-            ) : (
-              <Content>N/A</Content>
-            )}
-          </CardBody>
-        </Card>
-      </GridItem>
+      if (systemDelta > 0 && cpuDelta > 0) {
+        return (cpuDelta / systemDelta) * cpuCount * 100
+      }
+      return 0
+    }
+
+    // Extract memory stats
+    const memoryUsage = stats?.memory_stats?.usage || 0
+    const memoryLimit = stats?.memory_stats?.limit || 0
+    const memoryPercent = memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0
+
+    // Extract network stats - sum all interfaces
+    const calculateNetworkStats = () => {
+      let rx = 0
+      let tx = 0
       
-      <GridItem xl={3} lg={6} md={6} sm={12}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Block I/O</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {statsLoading ? (
-              <Spinner size="lg" />
-            ) : stats?.blkio ? (
-              <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
-                <FlexItem>
-                  <Content>
-                    <strong>Read:</strong> {formatBytes(stats.blkio.read || 0)}
-                  </Content>
-                </FlexItem>
-                <FlexItem>
-                  <Content>
-                    <strong>Write:</strong> {formatBytes(stats.blkio.write || 0)}
-                  </Content>
-                </FlexItem>
-              </Flex>
-            ) : (
-              <Content>N/A</Content>
-            )}
-          </CardBody>
-        </Card>
-      </GridItem>
-    </Grid>
-  )
+      if (stats?.networks) {
+        Object.values(stats.networks).forEach((net: any) => {
+          rx += net.rx_bytes || 0
+          tx += net.tx_bytes || 0
+        })
+      }
+      
+      return { rx, tx }
+    }
+    
+    const networkStats = calculateNetworkStats()
+
+    // Extract block I/O stats
+    const calculateBlockIoStats = () => {
+      let read = 0
+      let write = 0
+      
+      if (stats?.blkio_stats?.io_service_bytes_recursive) {
+        stats.blkio_stats.io_service_bytes_recursive.forEach((stat: any) => {
+          if (stat.op === 'read' || stat.op === 'Read') {
+            read += stat.value || 0
+          } else if (stat.op === 'write' || stat.op === 'Write') {
+            write += stat.value || 0
+          }
+        })
+      }
+      
+      return { read, write }
+    }
+    
+    const blockIoStats = calculateBlockIoStats()
+    const cpuPercent = calculateCpuPercent()
+
+    return (
+      <Grid hasGutter>
+        <GridItem xl={3} lg={6} md={6} sm={12}>
+          <Card>
+            <CardHeader>
+              <CardTitle>CPU Usage</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {statsLoading ? (
+                <Spinner size="lg" />
+              ) : cpuPercent !== undefined ? (
+                <Title headingLevel="h2" size="2xl">
+                  {cpuPercent.toFixed(2)}%
+                </Title>
+              ) : (
+                <Content>N/A</Content>
+              )}
+            </CardBody>
+          </Card>
+        </GridItem>
+        
+        <GridItem xl={3} lg={6} md={6} sm={12}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Memory Usage</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {statsLoading ? (
+                <Spinner size="lg" />
+              ) : memoryUsage > 0 ? (
+                <Flex direction={{ default: 'column' }}>
+                  <FlexItem>
+                    <Title headingLevel="h2" size="2xl">
+                      {formatBytes(memoryUsage)}
+                    </Title>
+                  </FlexItem>
+                  <FlexItem>
+                    <Content component={ContentVariants.small}>
+                      / {formatBytes(memoryLimit)} ({memoryPercent.toFixed(1)}%)
+                    </Content>
+                  </FlexItem>
+                </Flex>
+              ) : (
+                <Content>N/A</Content>
+              )}
+            </CardBody>
+          </Card>
+        </GridItem>
+        
+        <GridItem xl={3} lg={6} md={6} sm={12}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Network I/O</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {statsLoading ? (
+                <Spinner size="lg" />
+              ) : networkStats.rx > 0 || networkStats.tx > 0 ? (
+                <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                  <FlexItem>
+                    <Content>
+                      <strong>RX:</strong> {formatBytes(networkStats.rx)}
+                    </Content>
+                  </FlexItem>
+                  <FlexItem>
+                    <Content>
+                      <strong>TX:</strong> {formatBytes(networkStats.tx)}
+                    </Content>
+                  </FlexItem>
+                </Flex>
+              ) : (
+                <Content>N/A</Content>
+              )}
+            </CardBody>
+          </Card>
+        </GridItem>
+        
+        <GridItem xl={3} lg={6} md={6} sm={12}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Block I/O</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {statsLoading ? (
+                <Spinner size="lg" />
+              ) : blockIoStats.read > 0 || blockIoStats.write > 0 ? (
+                <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                  <FlexItem>
+                    <Content>
+                      <strong>Read:</strong> {formatBytes(blockIoStats.read)}
+                    </Content>
+                  </FlexItem>
+                  <FlexItem>
+                    <Content>
+                      <strong>Write:</strong> {formatBytes(blockIoStats.write)}
+                    </Content>
+                  </FlexItem>
+                </Flex>
+              ) : (
+                <Content>N/A</Content>
+              )}
+            </CardBody>
+          </Card>
+        </GridItem>
+      </Grid>
+    )
+  }
 
   const renderConfigTab = () => (
     <Card>
@@ -711,6 +770,7 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             </Toolbar>
           </CardBody>
         </Card>
+        {renderStatsTab()}
       </FlexItem>
 
       {/* Tabs Content */}
@@ -738,16 +798,6 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             }
           >
             {renderLogsTab()}
-          </Tab>
-          <Tab
-            eventKey="stats"
-            title={
-              <TabTitleText>
-                <TachometerAltIcon /> Statistics
-              </TabTitleText>
-            }
-          >
-            {renderStatsTab()}
           </Tab>
           <Tab
             eventKey="config"
