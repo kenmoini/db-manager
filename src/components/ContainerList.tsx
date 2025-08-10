@@ -388,13 +388,8 @@ export default function ContainerList({ onNavigateToDeploy }: ContainerListProps
               <ToolbarContent>
                 <ToolbarItem>
                   <Title headingLevel="h3" size="lg">
-                    {title}
+                    {title} ({containerList.length})
                   </Title>
-                </ToolbarItem>
-                <ToolbarItem>
-                  <Label color={showActions ? "blue" : "grey"}>
-                    <CubeIcon /> {containerList.length} container{containerList.length !== 1 ? 's' : ''}
-                  </Label>
                 </ToolbarItem>
               </ToolbarContent>
             </Toolbar>
