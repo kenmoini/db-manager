@@ -82,7 +82,7 @@ class ConfigService {
         throw new Error('Failed to load server configuration')
       }
       this.serverConfig = await response.json()
-      return this.serverConfig
+      return this.serverConfig!
     } catch (error) {
       console.error('Error loading server config:', error)
       // Return default configuration
@@ -101,7 +101,7 @@ class ConfigService {
         throw new Error('Failed to load templates configuration')
       }
       this.templatesConfig = await response.json()
-      return this.templatesConfig
+      return this.templatesConfig!
     } catch (error) {
       console.error('Error loading templates config:', error)
       // Return default configuration
@@ -185,7 +185,7 @@ class ConfigService {
   private getDefaultServerConfig(): ServerConfig {
     return {
       server: {
-        port: 3001,
+        port: 3000,
         host: '127.0.0.1',
         cors: {
           enabled: true,

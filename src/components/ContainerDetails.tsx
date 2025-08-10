@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Title,
   Button,
@@ -17,10 +17,13 @@ import {
   DescriptionListGroup,
   DescriptionListTerm,
   DescriptionListDescription,
+  DataList,
+  DataListItem,
+  DataListItemRow,
+  DataListItemCells,
+  DataListCell,
   Label,
   LabelGroup,
-  CodeBlock,
-  CodeBlockCode,
   Toolbar,
   ToolbarContent,
   ToolbarItem,
@@ -28,6 +31,9 @@ import {
   EmptyState,
   Modal,
   ModalVariant,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
   Icon,
   Content,
   ContentVariants
@@ -46,6 +52,9 @@ import {
   HddIcon,
   ClockIcon
 } from '@patternfly/react-icons'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 import { useContainerLogs, useContainerStats, useStartContainer, useStopContainer, useRestartContainer, useRemoveContainer } from '../hooks/usePodman'
 import { formatContainerState, formatBytes } from '../utils/databaseTemplates'
 import { Container } from '../types'
@@ -91,8 +100,13 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
     })
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+  const formatDate = (dateValue: string | number) => {
+    // Handle Unix timestamps (seconds since epoch) and ISO date strings
+    const date = typeof dateValue === 'number' 
+      ? new Date(dateValue * 1000) // Convert seconds to milliseconds
+      : new Date(dateValue)
+    
+    return date.toLocaleString()
   }
 
   const getStatusColor = (state: string): 'blue' | 'green' | 'red' | 'orange' | 'grey' => {
@@ -321,42 +335,126 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
     </Grid>
   )
 
-  const renderLogsTab = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-            <FlexItem>
-              <Title headingLevel="h3" size="lg">
-                Container Logs
+  const renderLogsTab = () => {
+    const terminalRef = useRef<HTMLDivElement>(null)
+    const terminal = useRef<Terminal | null>(null)
+    const fitAddon = useRef<FitAddon | null>(null)
+
+    useEffect(() => {
+      if (terminalRef.current && !terminal.current) {
+        // Create FitAddon
+        fitAddon.current = new FitAddon()
+
+        terminal.current = new Terminal({
+          fontSize: 14,
+          lineHeight: 1.2,
+          disableStdin: true,
+          convertEol: true,
+          screenReaderMode: false,
+          theme: {
+            background: '#000000',
+            foreground: '#ffffff',
+            cursor: '#ffffff',
+            cursorAccent: '#000000'
+          },
+          cursorBlink: false,
+          cursorStyle: 'block'
+        })
+        
+        // Load the fit addon
+        terminal.current.loadAddon(fitAddon.current)
+        
+        // Open terminal in the container
+        terminal.current.open(terminalRef.current)
+        console.log('Terminal opened successfully')
+        
+        // Fit the terminal to the container
+        setTimeout(() => {
+          if (fitAddon.current) {
+            fitAddon.current.fit()
+            console.log('Terminal fitted to container')
+          }
+        }, 100)
+
+        // Handle window resize
+        const handleResize = () => {
+          if (fitAddon.current) {
+            fitAddon.current.fit()
+          }
+        }
+
+        window.addEventListener('resize', handleResize)
+
+        return () => {
+          window.removeEventListener('resize', handleResize)
+          if (terminal.current) {
+            terminal.current.dispose()
+            terminal.current = null
+          }
+          fitAddon.current = null
+        }
+      }
+    }, [])
+
+    useEffect(() => {
+      console.log('Logs data:', { logs, hasLogs: !!logs, logType: typeof logs, logLength: logs?.length })
+      
+      if (terminal.current && logs) {
+        console.log('Writing to terminal:', logs.substring(0, 100) + '...')
+        terminal.current.clear()
+        // Write logs with proper handling of newlines
+        terminal.current.write(logs + '\r')
+        
+        // Scroll to bottom
+        terminal.current.scrollToBottom()
+      } else if (terminal.current && logs === '') {
+        terminal.current.clear()
+        terminal.current.write('No logs available')
+      }
+    }, [logs])
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+              <FlexItem>
+                <Title headingLevel="h3" size="lg">
+                  Container Logs
+                </Title>
+              </FlexItem>
+              <FlexItem>
+                <Content component={ContentVariants.small}>
+                  Last 100 lines
+                </Content>
+              </FlexItem>
+            </Flex>
+          </CardTitle>
+        </CardHeader>
+        <CardBody>
+          {logsLoading ? (
+            <EmptyState>
+              <Spinner />
+              <Title headingLevel="h4" size="lg">
+                Loading logs...
               </Title>
-            </FlexItem>
-            <FlexItem>
-              <Content component={ContentVariants.small}>
-                Last 100 lines
-              </Content>
-            </FlexItem>
-          </Flex>
-        </CardTitle>
-      </CardHeader>
-      <CardBody>
-        {logsLoading ? (
-          <EmptyState>
-            <Spinner />
-            <Title headingLevel="h4" size="lg">
-              Loading logs...
-            </Title>
-          </EmptyState>
-        ) : (
-          <CodeBlock>
-            <CodeBlockCode className="db-manager-logs">
-              {logs || 'No logs available'}
-            </CodeBlockCode>
-          </CodeBlock>
-        )}
-      </CardBody>
-    </Card>
-  )
+            </EmptyState>
+          ) : (
+            <div 
+              ref={terminalRef}
+              style={{ 
+                height: '500px',
+                width: '100%',
+                backgroundColor: '#000000',
+                border: '1px solid #ccc',
+                borderRadius: '4px'
+              }}
+            />
+          )}
+        </CardBody>
+      </Card>
+    )
+  }
 
   const renderStatsTab = () => (
     <Grid hasGutter>
@@ -481,18 +579,26 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
               Labels
             </Title>
             {container.labels && Object.keys(container.labels).length > 0 ? (
-              <DescriptionList>
+              <DataList aria-label="Container labels">
                 {Object.entries(container.labels).map(([key, value]) => (
-                  <DescriptionListGroup key={key}>
-                    <DescriptionListTerm>{key}</DescriptionListTerm>
-                    <DescriptionListDescription>
-                      <Content component={ContentVariants.small}>
-                        {value}
-                      </Content>
-                    </DescriptionListDescription>
-                  </DescriptionListGroup>
+                  <DataListItem key={key}>
+                    <DataListItemRow>
+                      <DataListItemCells
+                        dataListCells={[
+                          <DataListCell key="label-key" width={2}>
+                            <strong>{key}</strong>
+                          </DataListCell>,
+                          <DataListCell key="label-value" width={5}>
+                            <Content component={ContentVariants.small}>
+                              {value}
+                            </Content>
+                          </DataListCell>
+                        ]}
+                      />
+                    </DataListItemRow>
+                  </DataListItem>
                 ))}
-              </DescriptionList>
+              </DataList>
             ) : (
               <EmptyState>
                 <InfoIcon />
@@ -659,23 +765,27 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
       {/* Delete Confirmation Modal */}
       <Modal
         variant={ModalVariant.small}
-        title="Delete Database Container"
         isOpen={showConfirmDelete}
         onClose={() => setShowConfirmDelete(false)}
       >
-        <Content>
-          Are you sure you want to delete "{dbName}"? 
-          This action cannot be undone and all data will be lost unless you have persistent storage configured.
-        </Content>
-        <br />
-        <Flex gap={{ default: 'gapMd' }}>
+        <ModalHeader
+          title="Delete Database Container"
+          titleIconVariant="warning"
+        />
+        <ModalBody>
+          <Content>
+            Are you sure you want to delete "{dbName}"? 
+            This action cannot be undone and all data will be lost unless you have persistent storage configured.
+          </Content>
+        </ModalBody>
+        <ModalFooter>
           <Button
             variant="danger"
             onClick={handleRemove}
             isDisabled={removeMutation.isPending}
             isLoading={removeMutation.isPending}
           >
-            Delete
+            Delete Container
           </Button>
           <Button
             variant="link"
@@ -683,7 +793,7 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
           >
             Cancel
           </Button>
-        </Flex>
+        </ModalFooter>
       </Modal>
     </Flex>
   )
