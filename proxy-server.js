@@ -461,6 +461,55 @@ app.get('/api/port/check', async (req, res) => {
   }
 });
 
+// Container user info endpoint
+app.post('/api/container/user-info', async (req, res) => {
+  try {
+    const { image } = req.body;
+    
+    if (!image) {
+      return res.status(400).json({ error: 'Image name is required' });
+    }
+    
+    console.log(`🔍 Getting user info for image: ${image}`);
+    
+    // Determine the container runtime command (podman or docker)
+    const isDockerSocket = DOCKER_SOCKET.includes('docker.sock');
+    const containerCmd = isDockerSocket ? 'docker' : 'podman';
+    
+    // Run container to get user info
+    const command = `${containerCmd} run --rm ${image} id`;
+    console.log(`📋 Running command: ${command}`);
+    
+    const output = execSync(command, { encoding: 'utf8', timeout: 30000 }).trim();
+    console.log(`📋 Command output: ${output}`);
+    
+    // Parse the id command output: uid=1000(mysql) gid=1000(mysql) groups=1000(mysql)
+    const uidMatch = output.match(/uid=(\d+)(?:\(([^)]*)\))?/);
+    const gidMatch = output.match(/gid=(\d+)(?:\(([^)]*)\))?/);
+    
+    if (!uidMatch || !gidMatch) {
+      throw new Error('Unable to parse user information from container output');
+    }
+    
+    const userInfo = {
+      uid: uidMatch[1],
+      gid: gidMatch[1],
+      user: uidMatch[2] || 'unknown'
+    };
+    
+    console.log(`✅ Container user info for ${image}:`, userInfo);
+    
+    res.json(userInfo);
+    
+  } catch (error) {
+    console.error(`❌ Container user info error: ${error.message}`);
+    res.status(500).json({
+      error: 'Container User Info Error',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {

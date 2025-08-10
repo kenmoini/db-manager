@@ -142,7 +142,7 @@ function App() {
         )
       }
     } else if (activeTab === 'manage') {
-      return <ContainerList />
+      return <ContainerList onNavigateToDeploy={() => setActiveTab('deploy')} />
     } else if (activeTab === 'databases') {
       return <ManagedDatabases />
     }

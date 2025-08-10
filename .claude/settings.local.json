@@ -12,7 +12,9 @@
       "mcp__selenium__find_element",
       "mcp__selenium__close_session",
       "mcp__selenium__navigate",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)"
     ],
     "deny": []
   }

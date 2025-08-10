@@ -163,12 +163,110 @@ class PodmanService {
     }
   }
 
+  async getImageUserInfo(image: string): Promise<{ uid: string; gid: string; user: string }> {
+    try {
+      // Use proxy server to run container command to get user info
+      const response = await fetch('http://localhost:3001/api/container/user-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`Failed to get user info: ${errorData.error || response.statusText}`)
+      }
+      
+      const userInfo = await response.json()
+      console.log(`📋 Container user info for ${image}:`, userInfo)
+      return userInfo
+      
+    } catch (error) {
+      console.error(`Failed to get user info for image ${image}:`, error)
+      // Fallback to default user info if we can't determine it
+      return { uid: '1000', gid: '1000', user: 'default' }
+    }
+  }
+
+  private async ensureStoragePathExists(storagePath: string, userInfo?: { uid: string; gid: string; user: string }): Promise<void> {
+    try {
+      // Check if the directory exists by making a request to the filesystem API
+      const checkResponse = await fetch(`http://localhost:3001/api/filesystem/ls?path=${encodeURIComponent(storagePath)}`)
+      
+      if (checkResponse.ok) {
+        // Directory exists, we're good to go
+        console.log(`✓ Storage path exists: ${storagePath}`)
+        return
+      }
+      
+      // Directory doesn't exist, need to create it
+      console.log(`📁 Creating storage directory: ${storagePath}`)
+      
+      // Extract parent path and directory name
+      const pathParts = storagePath.split('/').filter(part => part.length > 0)
+      const dirName = pathParts.pop() || 'data'
+      const parentPath = '/' + pathParts.join('/')
+      
+      // Prepare the mkdir request body
+      const mkdirBody: any = {
+        path: parentPath,
+        name: dirName,
+        mode: '755'  // Standard directory permissions
+      }
+      
+      // Set ownership if user info is provided
+      if (userInfo) {
+        mkdirBody.owner = userInfo.uid
+        mkdirBody.group = userInfo.gid
+        console.log(`👤 Setting directory ownership to ${userInfo.uid}:${userInfo.gid} (${userInfo.user})`)
+      }
+      
+      // Create the directory using the proxy-server mkdir endpoint
+      const createResponse = await fetch('http://localhost:3001/api/filesystem/mkdir', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mkdirBody),
+      })
+      
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json()
+        
+        // If the error is that the directory already exists, that's fine
+        if (createResponse.status === 409 && errorData.error?.includes('already exists')) {
+          console.log(`✓ Storage path already exists: ${storagePath}`)
+          return
+        }
+        
+        throw new Error(`Failed to create storage directory: ${errorData.error || createResponse.statusText}`)
+      }
+      
+      console.log(`✓ Created storage directory: ${storagePath}`)
+      
+    } catch (error) {
+      console.error(`Failed to ensure storage path exists: ${error}`)
+      throw new Error(`Failed to create storage directory ${storagePath}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   async deployDatabase(config: DatabaseConfig): Promise<{ containerId: string }> {
-    const containerConfig = this.buildContainerConfig(config)
+    const image = `${config.imageRepository}:${config.version}`
     
     // Pull image first
-    const image = `${config.imageRepository}:${config.version}`
     await this.pullImage(image)
+    
+    // Get container user information after pulling the image
+    const userInfo = await this.getImageUserInfo(image)
+    
+    // If persistent storage is enabled, ensure the storage path exists with proper ownership
+    if (config.persistentStorage && config.storagePath) {
+      await this.ensureStoragePathExists(config.storagePath, userInfo)
+    }
+    
+    const containerConfig = this.buildContainerConfig(config)
     
     // Create container
     const result = await this.createContainer(containerConfig)

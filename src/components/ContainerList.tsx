@@ -17,6 +17,10 @@ import {
   AlertVariant,
   Modal,
   ModalVariant,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Divider,
   Toolbar,
   ToolbarContent,
   ToolbarItem,
@@ -48,7 +52,11 @@ import { podmanService } from '../services/podman'
 import { formatContainerState } from '../utils/databaseTemplates'
 import ContainerDetails from './ContainerDetails'
 
-export default function ContainerList() {
+interface ContainerListProps {
+  onNavigateToDeploy?: () => void
+}
+
+export default function ContainerList({ onNavigateToDeploy }: ContainerListProps) {
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null)
   const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null)
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({})
@@ -354,6 +362,7 @@ export default function ContainerList() {
 
   const renderContainerTable = (containerList: any[], title: string, emptyMessage: string, showActions = true) => {
     if (containerList.length === 0) {
+      const isManagedDatabases = title === "Managed Database Containers"
       return (
         <FlexItem>
           <EmptyState variant="sm">
@@ -361,6 +370,11 @@ export default function ContainerList() {
             <Title headingLevel="h4" size="md">
               {emptyMessage}
             </Title>
+            {isManagedDatabases && onNavigateToDeploy && (
+              <Button variant="primary" style={{ marginTop: '2rem' }} onClick={onNavigateToDeploy}>
+                Deploy Database
+              </Button>
+            )}
           </EmptyState>
         </FlexItem>
       )
@@ -624,6 +638,10 @@ export default function ContainerList() {
         true
       )}
 
+      <FlexItem>
+        <Divider />
+      </FlexItem>
+
       {/* Other Running Containers */}
       {renderContainerTable(
         otherRunningContainers,
@@ -635,18 +653,20 @@ export default function ContainerList() {
       {/* Delete Confirmation Modal */}
       <Modal
         variant={ModalVariant.small}
-        title="Delete Database Container"
-        titleIconVariant="warning"
         isOpen={!!showConfirmDelete}
         onClose={() => setShowConfirmDelete(null)}
       >
-        <div style={{ padding: '24px' }}>
+        <ModalHeader
+          title="Delete Database Container"
+          titleIconVariant="warning"
+        />
+        <ModalBody>
           <Content>
             Are you sure you want to delete this database container? 
             This action cannot be undone and all data will be lost unless you have persistent storage configured.
           </Content>
-        </div>
-        <div style={{ padding: '0 24px 24px 24px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+        </ModalBody>
+        <ModalFooter>
           <Button
             variant="danger"
             onClick={() => showConfirmDelete && handleRemove(showConfirmDelete, true)}
@@ -661,7 +681,7 @@ export default function ContainerList() {
           >
             Cancel
           </Button>
-        </div>
+        </ModalFooter>
       </Modal>
     </Flex>
   )
