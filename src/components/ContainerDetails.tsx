@@ -484,16 +484,69 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
   const renderStatsTab = () => {
     // Calculate CPU percentage from Docker stats
     const calculateCpuPercent = () => {
-      if (!stats?.cpu_stats || !stats?.precpu_stats) return undefined
-      
-      const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage
-      const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage
-      const cpuCount = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1
-      
-      if (systemDelta > 0 && cpuDelta > 0) {
-        return (cpuDelta / systemDelta) * cpuCount * 100
+      if (!stats) {
+        return undefined
       }
-      return 0
+      
+      // Docker/Podman API sometimes provides a pre-calculated CPU percentage
+      if (stats.cpu_stats?.cpu !== undefined) {
+        // The API provides CPU usage as a percentage across all cores
+        // Divide by online_cpus to get average per-core percentage (0-100%)
+        const cpuCount = stats.cpu_stats.online_cpus || 1
+        const cpuValue = stats.cpu_stats.cpu / cpuCount
+        // Return 0 explicitly for minimal load, undefined only for missing data
+        return cpuValue >= 0 ? cpuValue : 0
+      }
+      
+      // Fallback to manual calculation if pre-calculated value not available
+      const cpuStats = stats.cpu_stats || stats.CPUStats
+      const preCpuStats = stats.precpu_stats || stats.PreCPUStats
+      
+      if (!cpuStats) {
+        return undefined
+      }
+      
+      // If we don't have previous stats, check if current stats have the cpu field
+      if (!preCpuStats || !preCpuStats.cpu_usage || preCpuStats.cpu_usage.total_usage === 0) {
+        // Try to use the direct cpu value if available
+        if (cpuStats.cpu !== undefined) {
+          const cpuCount = cpuStats.online_cpus || 1
+          return cpuStats.cpu / cpuCount
+        }
+        // No data available for calculation
+        return 0
+      }
+      
+      const cpuUsage = cpuStats.cpu_usage || cpuStats.CPUUsage
+      const preCpuUsage = preCpuStats.cpu_usage || preCpuStats.CPUUsage
+      
+      if (!cpuUsage || !preCpuUsage) {
+        return undefined
+      }
+      
+      const totalUsage = cpuUsage.total_usage || cpuUsage.TotalUsage || 0
+      const preTotalUsage = preCpuUsage.total_usage || preCpuUsage.TotalUsage || 0
+      const systemCpuUsage = cpuStats.system_cpu_usage || cpuStats.SystemCPUUsage || 0
+      const preSystemCpuUsage = preCpuStats.system_cpu_usage || preCpuStats.SystemCPUUsage || 0
+      
+      // If we don't have system CPU usage, we can't calculate percentage
+      if (!systemCpuUsage || !preSystemCpuUsage) {
+        return 0
+      }
+      
+      const cpuDelta = totalUsage - preTotalUsage
+      const systemDelta = systemCpuUsage - preSystemCpuUsage
+      
+      // If no change in time, return 0
+      if (systemDelta <= 0) {
+        return 0
+      }
+      
+      // Calculate percentage (already normalized to 0-100 range)
+      const cpuPercent = (cpuDelta / systemDelta) * 100
+      
+      // Ensure we return a valid number, even if it's 0
+      return cpuPercent >= 0 ? cpuPercent : 0
     }
 
     // Extract memory stats

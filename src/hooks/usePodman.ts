@@ -61,7 +61,8 @@ export function useContainerStats(id: string) {
     queryKey: ['container-stats', id],
     queryFn: () => podmanService.getContainerStats(id),
     enabled: !!id,
-    refetchInterval: 10000,
+    refetchInterval: 2000,
+    refetchOnWindowFocus: true,
   })
 }
 
