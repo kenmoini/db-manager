@@ -496,7 +496,7 @@ export default function ManagedDatabases() {
   }
 
   return (
-    <Flex direction={{ default: 'column' }} gap={{ default: 'gapLg' }}>
+    <Flex direction={{ default: 'column' }} gap={{ default: 'gapNone' }}>
       <FlexItem>
         <Title headingLevel="h2" size="xl">
           Managed Databases

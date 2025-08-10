@@ -667,6 +667,111 @@ app.post('/api/database/create-user', async (req, res) => {
   }
 });
 
+app.post('/api/database/create-database', async (req, res) => {
+  const { host, port, username, password, type, databaseName, encoding, collation, owner } = req.body;
+  
+  if (!host || !port || !username || !type || !databaseName) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
+  try {
+    log(`Creating database ${databaseName} on ${type} database at ${host}:${port}`);
+    
+    if (type === 'mariadb' || type === 'mysql') {
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || ''
+      });
+      
+      // Build CREATE DATABASE statement with optional character set and collation
+      // Escape database name to prevent SQL injection
+      const escapedDbName = databaseName.replace(/`/g, '``');
+      let createDbSQL = `CREATE DATABASE IF NOT EXISTS \`${escapedDbName}\``;
+      
+      if (encoding) {
+        // Validate encoding to prevent injection
+        const validEncoding = encoding.replace(/[^a-zA-Z0-9_]/g, '');
+        createDbSQL += ` CHARACTER SET ${validEncoding}`;
+      }
+      
+      if (collation) {
+        // Validate collation to prevent injection
+        const validCollation = collation.replace(/[^a-zA-Z0-9_]/g, '');
+        createDbSQL += ` COLLATE ${validCollation}`;
+      }
+      
+      await connection.execute(createDbSQL);
+      await connection.end();
+      
+      res.json({ 
+        success: true, 
+        message: `Database '${databaseName}' created successfully` 
+      });
+    } else if (type === 'postgresql') {
+      // Connect to PostgreSQL using slonik
+      const connectionString = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@${host}:${port}/postgres`;
+      const pool = await createPool(connectionString);
+      
+      // Build CREATE DATABASE statement with optional parameters
+      // PostgreSQL requires dynamic SQL for database creation with variables
+      let createDbSQL = sql.unsafe`CREATE DATABASE ${sql.identifier([databaseName])}`;
+      
+      // Add optional parameters
+      const options = [];
+      if (encoding && encoding !== 'UTF8') {
+        options.push(`ENCODING = '${encoding}'`);
+      }
+      if (owner && owner !== username) {
+        options.push(`OWNER = "${owner}"`);
+      }
+      if (collation) {
+        options.push(`LC_COLLATE = '${collation}'`);
+      }
+      
+      if (options.length > 0) {
+        // We need to use unsafe SQL for CREATE DATABASE with options
+        const escapedDbName = databaseName.replace(/"/g, '""');
+        const fullSQL = `CREATE DATABASE "${escapedDbName}" WITH ${options.join(' ')}`;
+        await pool.query(sql.unsafe`${fullSQL}`);
+      } else {
+        await pool.query(createDbSQL);
+      }
+      
+      await pool.end();
+      
+      res.json({ 
+        success: true, 
+        message: `Database '${databaseName}' created successfully` 
+      });
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('Create database error:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to create database';
+    if (error.message) {
+      if (error.message.includes('already exists')) {
+        errorMessage = `Database '${databaseName}' already exists`;
+      } else if (error.message.includes('permission denied')) {
+        errorMessage = 'Permission denied to create database';
+      } else if (error.message.includes('does not exist')) {
+        errorMessage = 'Specified owner does not exist';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create database',
+      details: errorMessage 
+    });
+  }
+});
+
 app.post('/api/database/execute', async (req, res) => {
   const { host, port, username, password, type, query } = req.body;
   
