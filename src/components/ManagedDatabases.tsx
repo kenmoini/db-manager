@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Title,
   Card,
@@ -23,6 +23,10 @@ import {
   FormGroup,
   InputGroup,
   InputGroupItem,
+  ExpandableSection,
+  TextArea,
+  CodeBlock,
+  CodeBlockCode,
 } from '@patternfly/react-core'
 import {
   Table,
@@ -39,7 +43,8 @@ import {
   EyeIcon,
   EyeSlashIcon,
   PlusCircleIcon,
-  UserIcon
+  UserIcon,
+  PlayCircleIcon
 } from '@patternfly/react-icons'
 import { useAllContainers } from '../hooks/usePodman'
 import { podmanService } from '../services/podman'
@@ -77,6 +82,15 @@ export default function ManagedDatabases() {
   const [isConnected, setIsConnected] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   
+  // Refs for input focus
+  const passwordInputRef = useRef<HTMLInputElement>(null)
+  
+  // SQL executor state
+  const [sqlCommand, setSqlCommand] = useState('')
+  const [sqlOutput, setSqlOutput] = useState<string | null>(null)
+  const [isExecutingSql, setIsExecutingSql] = useState(false)
+  const [sqlExecutorExpanded, setSqlExecutorExpanded] = useState(false)
+  
   // Connection credentials
   const [credentials, setCredentials] = useState<ConnectionCredentials>({
     username: 'root',
@@ -113,6 +127,14 @@ export default function ManagedDatabases() {
     if (rootPassword) {
       setCredentials(prev => ({ ...prev, password: rootPassword }))
     }
+    
+    // Focus password input after container selection
+    setTimeout(() => {
+      if (passwordInputRef.current) {
+        passwordInputRef.current.focus()
+        passwordInputRef.current.select() // Also select the text if there's a pre-filled password
+      }
+    }, 100)
   }
 
   const handleConnect = async () => {
@@ -167,7 +189,7 @@ export default function ManagedDatabases() {
     }
   }
 
-  const fetchUsers = async (container: Container, creds: ConnectionCredentials) => {
+  const fetchUsers = async (container: Container, credentials: ConnectionCredentials) => {
     setIsLoadingUsers(true)
     
     try {
@@ -184,8 +206,8 @@ export default function ManagedDatabases() {
         body: JSON.stringify({
           host: 'localhost',
           port: port,
-          username: creds.username,
-          password: creds.password,
+          username: credentials.username,
+          password: credentials.password,
           type: dbType
         })
       })
@@ -199,6 +221,68 @@ export default function ManagedDatabases() {
       console.error('Error fetching users:', error)
     } finally {
       setIsLoadingUsers(false)
+    }
+  }
+  
+  const handleSqlExecute = async () => {
+    if (!selectedContainer || !sqlCommand.trim()) return
+    
+    setIsExecutingSql(true)
+    setSqlOutput(null)
+    
+    try {
+      const dbType = selectedContainer.labels?.['db-manager.database-type']
+      const port = getContainerPort(selectedContainer)
+      
+      if (!port) {
+        throw new Error('No exposed port found for database container')
+      }
+      
+      const response = await fetch('http://localhost:3000/api/database/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: 'localhost',
+          port: port,
+          username: credentials.username,
+          password: credentials.password,
+          type: dbType,
+          query: sqlCommand
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to execute SQL command')
+      }
+      
+      // Format the output based on the result type
+      if (data.rows && Array.isArray(data.rows)) {
+        // Format as table-like output for SELECT queries
+        if (data.rows.length === 0) {
+          setSqlOutput('Query executed successfully. No rows returned.')
+        } else {
+          const headers = Object.keys(data.rows[0])
+          const headerRow = headers.join(' | ')
+          const separator = headers.map(h => '-'.repeat(Math.max(h.length, 10))).join('-|-')
+          const dataRows = data.rows.map((row: any) => 
+            headers.map(h => String(row[h] ?? 'NULL')).join(' | ')
+          ).join('\n')
+          setSqlOutput(`${headerRow}\n${separator}\n${dataRows}`)
+        }
+      } else if (data.message) {
+        setSqlOutput(data.message)
+      } else {
+        setSqlOutput(JSON.stringify(data, null, 2))
+      }
+    } catch (error) {
+      console.error('Error executing SQL:', error)
+      setSqlOutput(`Error: ${error instanceof Error ? error.message : 'Failed to execute SQL command'}`)
+    } finally {
+      setIsExecutingSql(false)
     }
   }
   
@@ -371,6 +455,8 @@ export default function ManagedDatabases() {
                             type="text"
                             aria-label="Database username"
                             style={{ width: '150px' }}
+                            readOnly
+                            onFocus={(e) => e.target.removeAttribute('readonly')}
                           />
                         </FormGroup>
                       </FlexItem>
@@ -380,11 +466,14 @@ export default function ManagedDatabases() {
                           <InputGroup>
                             <InputGroupItem isFill>
                               <TextInput
+                                ref={passwordInputRef}
                                 value={credentials.password}
                                 onChange={(_event, value) => setCredentials(prev => ({ ...prev, password: value }))}
                                 type={showPassword ? 'text' : 'password'}
                                 aria-label="Database password"
                                 style={{ width: '150px' }}
+                                readOnly
+                                onFocus={(e) => e.target.removeAttribute('readonly')}
                               />
                             </InputGroupItem>
                             <InputGroupItem>
@@ -592,6 +681,60 @@ export default function ManagedDatabases() {
                   </Tbody>
                 </Table>
               )}
+            </CardBody>
+          </Card>
+        </FlexItem>
+      )}
+
+      {isConnected && (
+        <FlexItem>
+          <Card>
+            <CardBody>
+              <ExpandableSection
+                toggleText="SQL Command Executor"
+                onToggle={(_event, isExpanded) => setSqlExecutorExpanded(isExpanded)}
+                isExpanded={sqlExecutorExpanded}
+              >
+                <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }} style={{ marginTop: '1rem' }}>
+                  <FlexItem>
+                    <FormGroup label="SQL Command" fieldId="sql-command">
+                      <TextArea
+                        id="sql-command"
+                        value={sqlCommand}
+                        onChange={(_event, value) => setSqlCommand(value)}
+                        rows={5}
+                        placeholder="Enter SQL command (e.g., SELECT * FROM users LIMIT 10)"
+                        aria-label="SQL command input"
+                        resizeOrientation="vertical"
+                      />
+                    </FormGroup>
+                  </FlexItem>
+                  
+                  <FlexItem>
+                    <Button
+                      variant="primary"
+                      icon={<PlayCircleIcon />}
+                      onClick={handleSqlExecute}
+                      isDisabled={!sqlCommand.trim() || isExecutingSql}
+                      isLoading={isExecutingSql}
+                    >
+                      Execute
+                    </Button>
+                  </FlexItem>
+                  
+                  {sqlOutput && (
+                    <FlexItem>
+                      <FormGroup label="Output" fieldId="sql-output">
+                        <CodeBlock>
+                          <CodeBlockCode>
+                            {sqlOutput}
+                          </CodeBlockCode>
+                        </CodeBlock>
+                      </FormGroup>
+                    </FlexItem>
+                  )}
+                </Flex>
+              </ExpandableSection>
             </CardBody>
           </Card>
         </FlexItem>

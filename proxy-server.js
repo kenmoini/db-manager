@@ -613,6 +613,85 @@ app.post('/api/database/users', async (req, res) => {
   }
 });
 
+app.post('/api/database/execute', async (req, res) => {
+  const { host, port, username, password, type, query } = req.body;
+  
+  if (!host || !port || !username || !type || !query) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
+  try {
+    log(`Executing SQL on ${type} database at ${host}:${port}`);
+    
+    if (type === 'mariadb' || type === 'mysql') {
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        multipleStatements: true // Allow multiple SQL statements
+      });
+      
+      // Execute the query
+      const [result] = await connection.execute(query);
+      await connection.end();
+      
+      // Format response based on query type
+      if (Array.isArray(result)) {
+        // SELECT query - return rows
+        res.json({ 
+          success: true, 
+          rows: result,
+          rowCount: result.length
+        });
+      } else {
+        // INSERT/UPDATE/DELETE query - return affected rows
+        res.json({ 
+          success: true, 
+          message: `Query executed successfully. ${result.affectedRows || 0} rows affected.`,
+          affectedRows: result.affectedRows,
+          insertId: result.insertId
+        });
+      }
+    } else if (type === 'postgresql') {
+      const client = new PgClient({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || ''
+      });
+      
+      await client.connect();
+      const result = await client.query(query);
+      await client.end();
+      
+      // Format response based on query result
+      if (result.rows && result.rows.length > 0) {
+        res.json({ 
+          success: true, 
+          rows: result.rows,
+          rowCount: result.rowCount
+        });
+      } else {
+        res.json({ 
+          success: true, 
+          message: `Query executed successfully. ${result.rowCount || 0} rows affected.`,
+          rowCount: result.rowCount,
+          command: result.command
+        });
+      }
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('SQL execution error:', error);
+    res.status(500).json({ 
+      error: 'Failed to execute SQL command',
+      details: error.message 
+    });
+  }
+});
+
 app.post('/api/database/query', async (req, res) => {
   const { host, port, username, password, database, type, query } = req.body;
   
@@ -955,7 +1034,7 @@ app.post('/api/container/user-info', async (req, res) => {
 });
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     const isDockerSocket = DOCKER_SOCKET.includes('docker.sock');
     const infoPath = isDockerSocket ? '/v1.41/info' : '/v4.0.0/libpod/info';
@@ -991,11 +1070,11 @@ app.get('/health', async (req, res) => {
 });
 
 // Configuration API endpoints
-app.get('/api/config/server', (req, res) => {
+app.get('/api/config/server', (_req, res) => {
   res.json(serverConfig);
 });
 
-app.get('/api/config/templates', (req, res) => {
+app.get('/api/config/templates', (_req, res) => {
   res.json(templatesConfig);
 });
 
@@ -1028,7 +1107,7 @@ app.put('/api/config/templates', (req, res) => {
 });
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     service: 'Database Manager - Docker/Podman Proxy',
     version: '1.0.0',
