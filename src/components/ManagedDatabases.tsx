@@ -19,7 +19,6 @@ import {
   Label,
   TextInput,
   Button,
-  Form,
   FormGroup,
   InputGroup,
   InputGroupItem,
@@ -54,7 +53,6 @@ interface DatabaseInfo {
 interface ConnectionCredentials {
   username: string
   password: string
-  database?: string
 }
 
 export default function ManagedDatabases() {
@@ -69,8 +67,7 @@ export default function ManagedDatabases() {
   // Connection credentials
   const [credentials, setCredentials] = useState<ConnectionCredentials>({
     username: 'root',
-    password: '',
-    database: ''
+    password: ''
   })
   
   const { data: containers, isLoading: isLoadingContainers, error: containersError } = useAllContainers()
@@ -131,7 +128,7 @@ export default function ManagedDatabases() {
           port: port,
           username: credentials.username,
           password: credentials.password,
-          database: credentials.database || undefined,
+          database: dbType === 'postgresql' ? 'postgres' : undefined,
           type: dbType
         })
       })
@@ -242,135 +239,137 @@ export default function ManagedDatabases() {
       <FlexItem>
         <Card>
           <CardHeader>
-            <Title headingLevel="h3" size="lg">
-              Database Connection
-            </Title>
+            <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+              <FlexItem>
+                <Title headingLevel="h3" size="lg">
+                  Database Connection
+                </Title>
+              </FlexItem>
+              {isConnected && selectedContainer && (
+                <FlexItem>
+                  <Label color="green" icon={<ConnectedIcon />}>
+                    Connected to {getDatabaseTypeLabel(selectedContainer)} database
+                  </Label>
+                </FlexItem>
+              )}
+            </Flex>
           </CardHeader>
           <CardBody>
-            <Form>
-              <FormGroup label="Database Container" isRequired>
-                <Select
-                  isOpen={isSelectOpen}
-                  selected={selectedContainer?.id}
-                  onSelect={(_event, selection) => {
-                    const container = runningManagedDatabases.find(c => c.id === selection)
-                    if (container) handleContainerSelect(container)
-                  }}
-                  onOpenChange={(isOpen) => setIsSelectOpen(isOpen)}
-                  toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                    <MenuToggle ref={toggleRef} onClick={() => setIsSelectOpen(!isSelectOpen)} isExpanded={isSelectOpen}>
-                      {selectedContainer 
-                        ? `${getContainerDisplayName(selectedContainer)} (${getDatabaseTypeLabel(selectedContainer)})`
-                        : 'Select database container...'
-                      }
-                    </MenuToggle>
-                  )}
-                >
-                  {runningManagedDatabases.map((container) => (
-                    <SelectOption key={container.id} value={container.id}>
-                      <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                        <FlexItem>
-                          {getDatabaseTypeLabel(container) === 'MariaDB' ? '🗄️' : '🐘'}
-                        </FlexItem>
-                        <FlexItem>
-                          {getContainerDisplayName(container)}
-                        </FlexItem>
-                        <FlexItem>
-                          <Label color="blue" isCompact>
-                            {getDatabaseTypeLabel(container)}
-                          </Label>
-                        </FlexItem>
-                        <FlexItem>
-                          <Label color="green" isCompact>
-                            <ConnectedIcon /> Port {getContainerPort(container)}
-                          </Label>
-                        </FlexItem>
-                      </Flex>
-                    </SelectOption>
-                  ))}
-                </Select>
-              </FormGroup>
+            <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
+              <FlexItem>
+                <Flex gap={{ default: 'gapMd' }} alignItems={{ default: 'alignItemsFlexEnd' }}>
+                  <FlexItem flex={{ default: 'flex_1' }}>
+                    <FormGroup label="Database Container" isRequired>
+                      <Select
+                        isOpen={isSelectOpen}
+                        selected={selectedContainer?.id}
+                        onSelect={(_event, selection) => {
+                          const container = runningManagedDatabases.find(c => c.id === selection)
+                          if (container) handleContainerSelect(container)
+                        }}
+                        onOpenChange={(isOpen) => setIsSelectOpen(isOpen)}
+                        toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                          <MenuToggle ref={toggleRef} onClick={() => setIsSelectOpen(!isSelectOpen)} isExpanded={isSelectOpen}>
+                            {selectedContainer 
+                              ? `${getContainerDisplayName(selectedContainer)} (${getDatabaseTypeLabel(selectedContainer)})`
+                              : 'Select database container...'
+                            }
+                          </MenuToggle>
+                        )}
+                      >
+                        {runningManagedDatabases.map((container) => (
+                          <SelectOption key={container.id} value={container.id}>
+                            <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                              <FlexItem>
+                                {getDatabaseTypeLabel(container) === 'MariaDB' ? '🗄️' : '🐘'}
+                              </FlexItem>
+                              <FlexItem>
+                                {getContainerDisplayName(container)}
+                              </FlexItem>
+                              <FlexItem>
+                                <Label color="blue" isCompact>
+                                  {getDatabaseTypeLabel(container)}
+                                </Label>
+                              </FlexItem>
+                              <FlexItem>
+                                <Label color="green" isCompact>
+                                  <ConnectedIcon /> Port {getContainerPort(container)}
+                                </Label>
+                              </FlexItem>
+                            </Flex>
+                          </SelectOption>
+                        ))}
+                      </Select>
+                    </FormGroup>
+                  </FlexItem>
 
-              {selectedContainer && (
-                <>
-                  <FormGroup label="Username" isRequired>
-                    <TextInput
-                      value={credentials.username}
-                      onChange={(_event, value) => setCredentials(prev => ({ ...prev, username: value }))}
-                      type="text"
-                      aria-label="Database username"
-                    />
-                  </FormGroup>
+                  {selectedContainer && (
+                    <>
+                      <FlexItem>
+                        <FormGroup label="Username" isRequired>
+                          <TextInput
+                            value={credentials.username}
+                            onChange={(_event, value) => setCredentials(prev => ({ ...prev, username: value }))}
+                            type="text"
+                            aria-label="Database username"
+                            style={{ width: '150px' }}
+                          />
+                        </FormGroup>
+                      </FlexItem>
 
-                  <FormGroup label="Password">
-                    <InputGroup>
-                      <InputGroupItem isFill>
-                        <TextInput
-                          value={credentials.password}
-                          onChange={(_event, value) => setCredentials(prev => ({ ...prev, password: value }))}
-                          type={showPassword ? 'text' : 'password'}
-                          aria-label="Database password"
-                        />
-                      </InputGroupItem>
-                      <InputGroupItem>
+                      <FlexItem>
+                        <FormGroup label="Password">
+                          <InputGroup>
+                            <InputGroupItem isFill>
+                              <TextInput
+                                value={credentials.password}
+                                onChange={(_event, value) => setCredentials(prev => ({ ...prev, password: value }))}
+                                type={showPassword ? 'text' : 'password'}
+                                aria-label="Database password"
+                                style={{ width: '150px' }}
+                              />
+                            </InputGroupItem>
+                            <InputGroupItem>
+                              <Button
+                                variant="control"
+                                onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              >
+                                {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                              </Button>
+                            </InputGroupItem>
+                          </InputGroup>
+                        </FormGroup>
+                      </FlexItem>
+
+                      <FlexItem>
                         <Button
-                          variant="control"
-                          onClick={() => setShowPassword(!showPassword)}
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          variant="primary"
+                          onClick={handleConnect}
+                          isDisabled={!credentials.username || isLoadingDatabases}
+                          isLoading={isLoadingDatabases}
                         >
-                          {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                          Connect
                         </Button>
-                      </InputGroupItem>
-                    </InputGroup>
-                  </FormGroup>
-
-                  <FormGroup label="Database (optional)">
-                    <TextInput
-                      value={credentials.database}
-                      onChange={(_event, value) => setCredentials(prev => ({ ...prev, database: value }))}
-                      type="text"
-                      aria-label="Database name"
-                      placeholder={getDatabaseTypeLabel(selectedContainer) === 'PostgreSQL' ? 'postgres' : ''}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <Button
-                      variant="primary"
-                      onClick={handleConnect}
-                      isDisabled={!credentials.username || isLoadingDatabases}
-                      isLoading={isLoadingDatabases}
-                    >
-                      Connect to Database
-                    </Button>
-                  </FormGroup>
-                </>
-              )}
+                      </FlexItem>
+                    </>
+                  )}
+                </Flex>
+              </FlexItem>
 
               {connectionError && (
-                <Alert 
-                  variant={AlertVariant.danger} 
-                  title="Connection Failed" 
-                  isInline
-                >
-                  {connectionError}
-                </Alert>
+                <FlexItem>
+                  <Alert 
+                    variant={AlertVariant.danger} 
+                    title="Connection Failed" 
+                    isInline
+                  >
+                    {connectionError}
+                  </Alert>
+                </FlexItem>
               )}
 
-              {isConnected && !connectionError && (
-                <Alert 
-                  variant={AlertVariant.success} 
-                  title={`Connected to ${getDatabaseTypeLabel(selectedContainer!)} database`} 
-                  isInline
-                >
-                  <Content>
-                    Successfully connected as <strong>{credentials.username}</strong> to{' '}
-                    <strong>{getContainerDisplayName(selectedContainer!)}</strong> on port{' '}
-                    <strong>{getContainerPort(selectedContainer!)}</strong>
-                  </Content>
-                </Alert>
-              )}
-            </Form>
+            </Flex>
           </CardBody>
         </Card>
       </FlexItem>
