@@ -613,6 +613,81 @@ app.post('/api/database/users', async (req, res) => {
   }
 });
 
+app.post('/api/database/create-user', async (req, res) => {
+  const { host, port, username, password, type, newUsername, newPassword, newHost } = req.body;
+  
+  if (!host || !port || !username || !type || !newUsername || !newPassword) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
+  try {
+    log(`Creating user ${newUsername} on ${type} database at ${host}:${port}`);
+    
+    if (type === 'mariadb' || type === 'mysql') {
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || ''
+      });
+      
+      // Use safe escaping for user creation
+      const userHost = newHost || '%';
+      
+      // MySQL requires special handling for CREATE USER
+      // Using quote function to safely escape values
+      const quotedUser = connection.escape(newUsername);
+      const quotedHost = connection.escape(userHost);
+      const quotedPass = connection.escape(newPassword);
+      
+      // Create user statement - note the quotes are already included from escape()
+      const createUserSQL = `CREATE USER IF NOT EXISTS ${quotedUser}@${quotedHost} IDENTIFIED BY ${quotedPass}`;
+      await connection.execute(createUserSQL);
+      
+      // Flush privileges to apply changes
+      await connection.execute('FLUSH PRIVILEGES');
+      
+      await connection.end();
+      
+      res.json({ 
+        success: true, 
+        message: `User '${newUsername}'@'${userHost}' created successfully` 
+      });
+    } else if (type === 'postgresql') {
+      const client = new PgClient({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || ''
+      });
+      
+      await client.connect();
+      
+      // PostgreSQL uses different syntax and doesn't have host-based users
+      // Use parameterized queries with proper escaping
+      await client.query(
+        `CREATE USER ${client.escapeIdentifier(newUsername)} WITH PASSWORD $1`,
+        [newPassword]
+      );
+      
+      await client.end();
+      
+      res.json({ 
+        success: true, 
+        message: `User '${newUsername}' created successfully` 
+      });
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('Create user error:', error);
+    res.status(500).json({ 
+      error: 'Failed to create user',
+      details: error.message 
+    });
+  }
+});
+
 app.post('/api/database/execute', async (req, res) => {
   const { host, port, username, password, type, query } = req.body;
   
@@ -1037,6 +1112,7 @@ app.post('/api/container/user-info', async (req, res) => {
 app.get('/health', async (_req, res) => {
   try {
     const isDockerSocket = DOCKER_SOCKET.includes('docker.sock');
+    // cspell:ignore libpod
     const infoPath = isDockerSocket ? '/v1.41/info' : '/v4.0.0/libpod/info';
     
     const response = await makeUnixSocketRequest(

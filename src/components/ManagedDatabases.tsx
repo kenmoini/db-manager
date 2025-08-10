@@ -1,3 +1,4 @@
+// cspell:ignore patternfly
 import { useState, useRef } from 'react'
 import {
   Title,
@@ -27,6 +28,11 @@ import {
   TextArea,
   CodeBlock,
   CodeBlockCode,
+  Modal,
+  ModalVariant,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from '@patternfly/react-core'
 import {
   Table,
@@ -90,6 +96,16 @@ export default function ManagedDatabases() {
   const [sqlOutput, setSqlOutput] = useState<string | null>(null)
   const [isExecutingSql, setIsExecutingSql] = useState(false)
   const [sqlExecutorExpanded, setSqlExecutorExpanded] = useState(false)
+  
+  // Add user modal state
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
+  const [newUser, setNewUser] = useState({
+    username: '',
+    password: '',
+    host: '%' // Default to % for MySQL/MariaDB (all hosts)
+  })
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [createUserError, setCreateUserError] = useState<string | null>(null)
   
   // Connection credentials
   const [credentials, setCredentials] = useState<ConnectionCredentials>({
@@ -221,6 +237,59 @@ export default function ManagedDatabases() {
       console.error('Error fetching users:', error)
     } finally {
       setIsLoadingUsers(false)
+    }
+  }
+  
+  const handleCreateUser = async () => {
+    if (!selectedContainer || !newUser.username || !newUser.password) return
+    
+    setIsCreatingUser(true)
+    setCreateUserError(null)
+    
+    try {
+      const dbType = selectedContainer.labels?.['db-manager.database-type']
+      const port = getContainerPort(selectedContainer)
+      
+      if (!port) {
+        throw new Error('No exposed port found for database container')
+      }
+      
+      const response = await fetch('http://localhost:3000/api/database/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: 'localhost',
+          port: port,
+          username: credentials.username,
+          password: credentials.password,
+          type: dbType,
+          newUsername: newUser.username,
+          newPassword: newUser.password,
+          newHost: dbType === 'postgresql' ? undefined : newUser.host // Host is only for MySQL/MariaDB
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to create user')
+      }
+      
+      // Close modal and refresh users list
+      setIsAddUserModalOpen(false)
+      setNewUser({ username: '', password: '', host: '%' })
+      
+      // Refresh the users list
+      if (selectedContainer && credentials) {
+        fetchUsers(selectedContainer, credentials)
+      }
+    } catch (error) {
+      console.error('Error creating user:', error)
+      setCreateUserError(error instanceof Error ? error.message : 'Failed to create user')
+    } finally {
+      setIsCreatingUser(false)
     }
   }
   
@@ -596,10 +665,7 @@ export default function ManagedDatabases() {
                   <Button
                     variant="primary"
                     icon={<PlusCircleIcon />}
-                    onClick={() => {
-                      // TODO: Implement add user functionality
-                      console.log('Add user clicked for:', selectedContainer)
-                    }}
+                    onClick={() => setIsAddUserModalOpen(true)}
                   >
                     Add User
                   </Button>
@@ -739,6 +805,95 @@ export default function ManagedDatabases() {
           </Card>
         </FlexItem>
       )}
+
+      {/* Add User Modal */}
+      <Modal
+        variant={ModalVariant.small}
+        isOpen={isAddUserModalOpen}
+        onClose={() => {
+          setIsAddUserModalOpen(false)
+          setNewUser({ username: '', password: '', host: '%' })
+          setCreateUserError(null)
+        }}
+      >
+        <ModalHeader title="Create Database User" />
+        <ModalBody>
+          <Form>
+          <FormGroup label="Username" isRequired fieldId="new-username">
+            <TextInput
+              id="new-username"
+              value={newUser.username}
+              onChange={(_event, value) => setNewUser(prev => ({ ...prev, username: value }))}
+              type="text"
+              aria-label="New user username"
+              isRequired
+            />
+          </FormGroup>
+          
+          <FormGroup label="Password" isRequired fieldId="new-password">
+            <TextInput
+              id="new-password"
+              value={newUser.password}
+              onChange={(_event, value) => setNewUser(prev => ({ ...prev, password: value }))}
+              type="password"
+              aria-label="New user password"
+              isRequired
+            />
+          </FormGroup>
+          
+          {selectedContainer?.labels?.['db-manager.database-type'] !== 'postgresql' && (
+            <FormGroup 
+              label="Host" 
+              fieldId="new-host"
+            >
+              <TextInput
+                id="new-host"
+                value={newUser.host}
+                onChange={(_event, value) => setNewUser(prev => ({ ...prev, host: value }))}
+                type="text"
+                aria-label="New user host"
+                placeholder="%"
+              />
+              <Content component={ContentVariants.small}>
+                Use '%' for all hosts, 'localhost' for local only, or specify an IP/hostname
+              </Content>
+            </FormGroup>
+          )}
+          
+          {createUserError && (
+            <Alert
+              variant={AlertVariant.danger}
+              title="Failed to create user"
+              isInline
+            >
+              {createUserError}
+            </Alert>
+          )}
+        </Form>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            key="create"
+            variant="primary"
+            onClick={handleCreateUser}
+            isDisabled={!newUser.username || !newUser.password || isCreatingUser}
+            isLoading={isCreatingUser}
+          >
+            Create User
+          </Button>
+          <Button
+            key="cancel"
+            variant="link"
+            onClick={() => {
+              setIsAddUserModalOpen(false)
+              setNewUser({ username: '', password: '', host: '%' })
+              setCreateUserError(null)
+            }}
+          >
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
     </Flex>
   )
 }
