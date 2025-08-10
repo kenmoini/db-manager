@@ -118,7 +118,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
     })
 
     try {
-      const response = await fetch(`http://localhost:3001/api/port/check?port=${port}`)
+      const response = await fetch(`http://localhost:3000/api/port/check?port=${port}`)
       const data = await response.json()
       
       if (response.ok) {

@@ -18,7 +18,8 @@
       "mcp__selenium__get_element_text",
       "Bash(env)",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

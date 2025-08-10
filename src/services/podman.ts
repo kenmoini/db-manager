@@ -7,7 +7,7 @@ class PodmanService {
   constructor(socketPath = '/var/run/docker.sock') {
     this.socketPath = socketPath
     // Use a local proxy server that bridges HTTP requests to Unix socket
-    this.proxyUrl = 'http://localhost:3001/api/podman'
+    this.proxyUrl = 'http://localhost:3000/api/podman'
   }
 
   private async fetchFromSocket(endpoint: string, options: RequestInit = {}): Promise<Response> {
@@ -17,7 +17,7 @@ class PodmanService {
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
           'X-Socket-Path': this.socketPath,
           ...options.headers,
         },
@@ -166,7 +166,7 @@ class PodmanService {
   async getImageUserInfo(image: string): Promise<{ uid: string; gid: string; user: string }> {
     try {
       // Use proxy server to run container command to get user info
-      const response = await fetch('http://localhost:3001/api/container/user-info', {
+      const response = await fetch('http://localhost:3000/api/container/user-info', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +193,7 @@ class PodmanService {
   private async ensureStoragePathExists(storagePath: string, userInfo?: { uid: string; gid: string; user: string }): Promise<void> {
     try {
       // Check if the directory exists by making a request to the filesystem API
-      const checkResponse = await fetch(`http://localhost:3001/api/filesystem/ls?path=${encodeURIComponent(storagePath)}`)
+      const checkResponse = await fetch(`http://localhost:3000/api/filesystem/ls?path=${encodeURIComponent(storagePath)}`)
       
       if (checkResponse.ok) {
         // Directory exists, we're good to go
@@ -224,7 +224,7 @@ class PodmanService {
       }
       
       // Create the directory using the proxy-server mkdir endpoint
-      const createResponse = await fetch('http://localhost:3001/api/filesystem/mkdir', {
+      const createResponse = await fetch('http://localhost:3000/api/filesystem/mkdir', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -377,10 +377,72 @@ class PodmanService {
       stdout: 'true',
       stderr: 'true',
       tail: tail.toString(),
+      timestamps: 'true',
+      details: 'true',
+      multi: 'true'
     })
     
     const response = await this.fetchFromSocket(`/containers/${id}/logs?${params}`)
-    return response.text()
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch container logs: ${response.status} ${response.statusText}`)
+    }
+    
+    // According to libpod API spec, logs are streamed as binary data in the response body
+    // The format is Docker's multiplexed stream format with 8-byte headers
+    const arrayBuffer = await response.arrayBuffer()
+    const uint8Array = new Uint8Array(arrayBuffer)
+    
+    const processedLines: string[] = []
+    let offset = 0
+    
+    while (offset < uint8Array.length) {
+      // Check if we have at least 8 bytes for the header
+      if (offset + 8 > uint8Array.length) {
+        // Not enough bytes for header, treat remaining as plain text
+        const remaining = new TextDecoder('utf-8').decode(uint8Array.subarray(offset))
+        const lines = remaining.split('\n').filter(line => line.trim())
+        processedLines.push(...lines)
+        break
+      }
+      
+      // Read the 8-byte header
+      const streamType = uint8Array[offset]     // 0=stdin, 1=stdout, 2=stderr
+      // bytes 1-3 are padding (should be 0)
+      const payloadSize = (uint8Array[offset + 4] << 24) | 
+                         (uint8Array[offset + 5] << 16) | 
+                         (uint8Array[offset + 6] << 8) | 
+                         uint8Array[offset + 7]
+      
+      // Validate header
+      if (streamType > 2 || payloadSize <= 0 || payloadSize > uint8Array.length - offset - 8) {
+        // Invalid header, treat remaining data as plain text
+        const remaining = new TextDecoder('utf-8').decode(uint8Array.subarray(offset))
+        const lines = remaining.split('\n').filter(line => line.trim())
+        processedLines.push(...lines)
+        break
+      }
+      
+      // Read the payload
+      offset += 8
+      const payloadBytes = uint8Array.subarray(offset, offset + payloadSize)
+      const payload = new TextDecoder('utf-8').decode(payloadBytes)
+      
+      // Split payload into lines and add to result
+      const lines = payload.split('\n').filter(line => line.trim())
+      processedLines.push(...lines)
+      
+      offset += payloadSize
+    }
+    
+    // If no processed lines, try fallback plain text processing
+    if (processedLines.length === 0) {
+      const plainText = new TextDecoder('utf-8').decode(uint8Array)
+      const lines = plainText.split('\n').filter(line => line.trim())
+      processedLines.push(...lines)
+    }
+    
+    return processedLines.join('\n')
   }
 
   async getContainerStats(id: string): Promise<any> {

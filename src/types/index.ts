@@ -5,7 +5,7 @@ export interface Container {
   state: 'running' | 'stopped' | 'paused' | 'restarting'
   status: string
   ports: Port[]
-  created: string
+  created: string | number
   labels: Record<string, string>
   mounts: Mount[]
   networkSettings: NetworkSettings

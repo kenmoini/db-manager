@@ -97,7 +97,7 @@ process.on('SIGTERM', () => {
 });
 
 const app = express();
-const PORT = process.env.PORT || serverConfig.server?.port || 3001;
+const PORT = process.env.PORT || serverConfig.server?.port || 3000;
 const HOST = process.env.HOST || serverConfig.server?.host || '127.0.0.1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -111,7 +111,7 @@ const corsOptions = NODE_ENV === 'production'
     }
   : {
       origin: serverConfig.server?.cors?.origins || 
-              ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+              ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
       credentials: true
     };
 
@@ -189,7 +189,7 @@ function makeUnixSocketRequest(socketPath, method, path, body, headers = {}) {
     });
 
     socket.on('data', (data) => {
-      responseData += data.toString();
+      responseData += data.toString('binary');
     });
 
     socket.on('end', () => {
@@ -306,8 +306,14 @@ app.all('/api/podman/*', async (req, res) => {
       res.set('Content-Type', response.headers['content-type']);
     }
 
-    // Handle streaming responses (like image pulls)
-    if (response.headers['content-type']?.includes('application/json') && response.body) {
+    // Handle different response types
+    if (fullPath.includes('/logs')) {
+      // Container logs are binary data that need special handling
+      // Convert binary string back to Buffer for proper transmission
+      const binaryBuffer = Buffer.from(response.body, 'binary');
+      res.set('Content-Type', 'application/octet-stream');
+      res.send(binaryBuffer);
+    } else if (response.headers['content-type']?.includes('application/json') && response.body) {
       // Try to parse as JSON, fallback to text
       try {
         // Additional JSON cleaning before parsing

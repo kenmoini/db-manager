@@ -74,7 +74,7 @@ export default function DirectoryBrowser({
     setError(null)
     
     try {
-      const response = await fetch(`http://localhost:3001/api/filesystem?path=${encodeURIComponent(path)}`)
+      const response = await fetch(`http://localhost:3000/api/filesystem?path=${encodeURIComponent(path)}`)
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch directory')
@@ -121,7 +121,7 @@ export default function DirectoryBrowser({
     setCreateError(null)
 
     try {
-      const response = await fetch('http://localhost:3001/api/filesystem/mkdir', {
+      const response = await fetch('http://localhost:3000/api/filesystem/mkdir', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

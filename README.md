@@ -100,7 +100,7 @@ npm install
 ```bash
 npm run dev:full
 ```
-This starts both the proxy server (port 3001) and the React development server (port 5173).
+This starts both the proxy server (port 3000) and the React development server (port 5173).
 
 4. **Open the application**:
 Navigate to `http://localhost:5173` in your web browser.
@@ -319,9 +319,9 @@ ls -la $XDG_RUNTIME_DIR/podman/podman.sock
 - Check container runtime permissions
 
 #### Proxy server connection issues
-1. Verify proxy server is running on port 3001
+1. Verify proxy server is running on port 3000
 2. Check CORS configuration for your domain
-3. Ensure firewall allows connections to port 3001
+3. Ensure firewall allows connections to port 3000
 
 ### Development Issues
 
@@ -333,7 +333,7 @@ npm run dev:full
 
 #### Port conflicts
 - Frontend (Vite): Default port 5173
-- Proxy server: Default port 3001
+- Proxy server: Default port 3000
 - Modify ports in `package.json` scripts if needed
 
 ## 🤝 Contributing
