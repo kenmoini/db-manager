@@ -411,6 +411,7 @@ export default function ContainerList() {
                     }}
                   >
                     Container
+                    <span style={{ fontSize: '12px', display: 'block' }}>&nbsp;</span>
                   </Th>
                   <Th 
                     width={20}
@@ -422,6 +423,7 @@ export default function ContainerList() {
                     }}
                   >
                     Status
+                    <span style={{ fontSize: '12px', display: 'block' }}>&nbsp;</span>
                   </Th>
                   <Th 
                     width={20}
@@ -433,6 +435,7 @@ export default function ContainerList() {
                     }}
                   >
                     Ports
+                    <span style={{ fontWeight: 'normal', display: 'block', fontSize: '12px', color: 'var(--pf-v6-global--Color--text--secondary--default)' }}>host:container</span>
                   </Th>
                   {showActions && (
                     <Th 
@@ -445,6 +448,7 @@ export default function ContainerList() {
                       }}
                     >
                       Actions
+                    <span style={{ fontSize: '12px', display: 'block' }}>&nbsp;</span>
                     </Th>
                   )}
                 </Tr>

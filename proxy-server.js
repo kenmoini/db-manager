@@ -6,6 +6,7 @@ import http from 'http';
 import net from 'net';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -299,7 +300,7 @@ app.get('/api/filesystem', async (req, res) => {
 // Directory creation endpoint
 app.post('/api/filesystem/mkdir', async (req, res) => {
   try {
-    const { path: dirPath, name } = req.body;
+    const { path: dirPath, name, owner, group, mode } = req.body;
     
     if (!dirPath || !name) {
       return res.status(400).json({ error: 'Path and name are required' });
@@ -314,6 +315,13 @@ app.post('/api/filesystem/mkdir', async (req, res) => {
     // Validate directory name
     if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
       return res.status(400).json({ error: 'Invalid directory name. Only letters, numbers, dots, underscores, and hyphens are allowed.' });
+    }
+    
+    // Validate mode permissions (if provided)
+    if (mode && !/^[0-7]{3,4}$/.test(mode.toString())) {
+      return res.status(400).json({ 
+        error: 'Invalid mode. Must be octal notation (e.g., 755, 644, 0755)' 
+      });
     }
     
     // Check if parent path exists and is a directory
@@ -336,13 +344,59 @@ app.post('/api/filesystem/mkdir', async (req, res) => {
     
     // Create the directory
     fs.mkdirSync(newDirPath);
-    
     console.log(`📁 Created directory: ${newDirPath}`);
-    res.json({ 
+    
+    // Set advanced permissions and ownership if provided
+    const operations = [];
+    const warnings = [];
+    
+    try {
+      // Set mode permissions if provided
+      if (mode) {
+        execSync(`chmod ${mode} "${newDirPath}"`);
+        operations.push(`permissions set to ${mode}`);
+        console.log(`� Set permissions ${mode} on ${newDirPath}`);
+      }
+      
+      // Set ownership if provided
+      if (owner || group) {
+        let chownCommand = 'chown ';
+        if (owner && group) {
+          chownCommand += `${owner}:${group}`;
+        } else if (owner) {
+          chownCommand += `${owner}`;
+        } else if (group) {
+          chownCommand += `:${group}`;
+        }
+        chownCommand += ` "${newDirPath}"`;
+        
+        execSync(chownCommand);
+        const ownershipDesc = owner && group ? `${owner}:${group}` : owner ? owner : `:${group}`;
+        operations.push(`ownership set to ${ownershipDesc}`);
+        console.log(`👤 Set ownership ${ownershipDesc} on ${newDirPath}`);
+      }
+      
+    } catch (permError) {
+      // Directory was created but permission/ownership setting failed
+      console.warn(`⚠️ Failed to set permissions/ownership: ${permError.message}`);
+      warnings.push(`Failed to set permissions/ownership: ${permError.message}`);
+    }
+    
+    const response = {
       success: true, 
       path: newDirPath,
-      message: `Directory '${name}' created successfully`
-    });
+      message: `Directory '${name}' created successfully${operations.length > 0 ? ' with ' + operations.join(' and ') : ''}`
+    };
+    
+    if (operations.length > 0) {
+      response.operations = operations;
+    }
+    
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+    
+    res.json(response);
     
   } catch (error) {
     console.error(`❌ Directory creation error: ${error.message}`);

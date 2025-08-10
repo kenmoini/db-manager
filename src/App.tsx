@@ -17,7 +17,7 @@ import {
   FlexItem,
   Label
 } from '@patternfly/react-core'
-import { DatabaseIcon, CubeIcon, PlayIcon } from '@patternfly/react-icons'
+import { DatabaseIcon, CubeIcon, PlayIcon, CubesIcon, PlusIcon, TableIcon  } from '@patternfly/react-icons'
 import { useAllContainers } from './hooks/usePodman'
 import DatabaseSelector from './components/DatabaseSelector'
 import ContainerList from './components/ContainerList'
@@ -27,7 +27,7 @@ import { DatabaseTemplate } from './types'
 import { podmanService } from './services/podman'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'deploy' | 'manage' | 'databases'>('deploy')
+  const [activeTab, setActiveTab] = useState<'deploy' | 'manage' | 'databases'>('manage')
   const [showDeployForm, setShowDeployForm] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<DatabaseTemplate | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -67,7 +67,7 @@ function App() {
           </FlexItem>
           <FlexItem>
             <Label color="blue">
-              <PlayIcon /> {managedContainers} Managed
+              <DatabaseIcon /> {managedContainers} Managed
             </Label>
           </FlexItem>
         </Flex>
@@ -79,6 +79,7 @@ function App() {
     <Nav>
       <NavList>
         <NavItem
+          style={{ backgroundColor: 'var(--pf-t--global--color--brand--default)', color: 'var(--pf-t--global--background--color--primary--default)' }}
           itemId="deploy"
           isActive={activeTab === 'deploy'}
           onClick={() => {
@@ -87,23 +88,21 @@ function App() {
             setSelectedTemplate(null)
           }}
         >
-          Deploy Database
+          <PlusIcon /> Deploy Database
         </NavItem>
-        <NavItemSeparator />
         <NavItem
           itemId="manage"
           isActive={activeTab === 'manage'}
           onClick={() => setActiveTab('manage')}
         >
-          Manage Containers
+          <CubesIcon /> Manage Containers
         </NavItem>
-        <NavItemSeparator />
         <NavItem
           itemId="databases"
           isActive={activeTab === 'databases'}
           onClick={() => setActiveTab('databases')}
         >
-          Managed Databases
+          <TableIcon /> Managed Databases
         </NavItem>
       </NavList>
     </Nav>
