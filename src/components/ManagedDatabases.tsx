@@ -19,6 +19,7 @@ import {
   Label,
   TextInput,
   Button,
+  Form,
   FormGroup,
   InputGroup,
   InputGroupItem,
@@ -36,7 +37,9 @@ import {
   ExclamationTriangleIcon,
   ConnectedIcon,
   EyeIcon,
-  EyeSlashIcon
+  EyeSlashIcon,
+  PlusCircleIcon,
+  UserIcon
 } from '@patternfly/react-icons'
 import { useAllContainers } from '../hooks/usePodman'
 import { podmanService } from '../services/podman'
@@ -50,6 +53,14 @@ interface DatabaseInfo {
   collation?: string
 }
 
+interface UserInfo {
+  username: string
+  host?: string
+  privileges: string
+  has_password: string
+  valid_until?: string
+}
+
 interface ConnectionCredentials {
   username: string
   password: string
@@ -59,7 +70,9 @@ export default function ManagedDatabases() {
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null)
   const [isSelectOpen, setIsSelectOpen] = useState(false)
   const [databases, setDatabases] = useState<DatabaseInfo[]>([])
+  const [users, setUsers] = useState<UserInfo[]>([])
   const [isLoadingDatabases, setIsLoadingDatabases] = useState(false)
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -83,6 +96,7 @@ export default function ManagedDatabases() {
     setSelectedContainer(container)
     setIsSelectOpen(false)
     setDatabases([])
+    setUsers([])
     setConnectionError(null)
     setIsConnected(false)
     
@@ -141,6 +155,9 @@ export default function ManagedDatabases() {
 
       setDatabases(data.databases || [])
       setIsConnected(true)
+      
+      // Fetch users after successful connection
+      fetchUsers(selectedContainer, credentials)
     } catch (error) {
       console.error('Error connecting to database:', error)
       setConnectionError(error instanceof Error ? error.message : 'Failed to connect to database')
@@ -150,6 +167,41 @@ export default function ManagedDatabases() {
     }
   }
 
+  const fetchUsers = async (container: Container, creds: ConnectionCredentials) => {
+    setIsLoadingUsers(true)
+    
+    try {
+      const dbType = container.labels?.['db-manager.database-type']
+      const port = getContainerPort(container)
+      
+      if (!port) return
+      
+      const response = await fetch('http://localhost:3000/api/database/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: 'localhost',
+          port: port,
+          username: creds.username,
+          password: creds.password,
+          type: dbType
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        setUsers(data.users || [])
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    } finally {
+      setIsLoadingUsers(false)
+    }
+  }
+  
   const getContainerPort = (container: Container): number | null => {
     // First try to get the port from the container label (most reliable)
     const labelPort = container.labels?.['db-manager.database-port']
@@ -252,15 +304,21 @@ export default function ManagedDatabases() {
                   </Label>
                 </FlexItem>
               )}
-            </Flex>
+              </Flex>
           </CardHeader>
           <CardBody>
-            <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
-              <FlexItem>
-                <Flex gap={{ default: 'gapMd' }} alignItems={{ default: 'alignItemsFlexEnd' }}>
-                  <FlexItem flex={{ default: 'flex_1' }}>
-                    <FormGroup label="Database Container" isRequired>
-                      <Select
+            <Form onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedContainer && credentials.username && !isLoadingDatabases) {
+                handleConnect();
+              }
+            }}>
+              <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
+                <FlexItem>
+                  <Flex gap={{ default: 'gapMd' }} alignItems={{ default: 'alignItemsFlexEnd' }}>
+                    <FlexItem flex={{ default: 'flex_1' }}>
+                      <FormGroup label="Database Container" isRequired>
+                        <Select
                         isOpen={isSelectOpen}
                         selected={selectedContainer?.id}
                         onSelect={(_event, selection) => {
@@ -345,7 +403,7 @@ export default function ManagedDatabases() {
                       <FlexItem>
                         <Button
                           variant="primary"
-                          onClick={handleConnect}
+                          type="submit"
                           isDisabled={!credentials.username || isLoadingDatabases}
                           isLoading={isLoadingDatabases}
                         >
@@ -368,8 +426,8 @@ export default function ManagedDatabases() {
                   </Alert>
                 </FlexItem>
               )}
-
-            </Flex>
+              </Flex>
+            </Form>
           </CardBody>
         </Card>
       </FlexItem>
@@ -378,9 +436,25 @@ export default function ManagedDatabases() {
         <FlexItem>
           <Card>
             <CardHeader>
-              <Title headingLevel="h3" size="lg">
-                Databases in {getContainerDisplayName(selectedContainer!)}
-              </Title>
+              <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+                <FlexItem>
+                  <Title headingLevel="h3" size="lg">
+                    Databases in {getContainerDisplayName(selectedContainer!)}
+                  </Title>
+                </FlexItem>
+                <FlexItem>
+                  <Button
+                    variant="primary"
+                    icon={<PlusCircleIcon />}
+                    onClick={() => {
+                      // TODO: Implement add database functionality
+                      console.log('Add database clicked for:', selectedContainer)
+                    }}
+                  >
+                    Add Database
+                  </Button>
+                </FlexItem>
+              </Flex>
             </CardHeader>
             <CardBody>
               <Table aria-label="Database list" variant="compact">
@@ -414,6 +488,110 @@ export default function ManagedDatabases() {
                   ))}
                 </Tbody>
               </Table>
+            </CardBody>
+          </Card>
+        </FlexItem>
+      )}
+
+      {isConnected && users.length > 0 && (
+        <FlexItem>
+          <Card>
+            <CardHeader>
+              <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+                <FlexItem>
+                  <Title headingLevel="h3" size="lg">
+                    Users in {getContainerDisplayName(selectedContainer!)}
+                  </Title>
+                </FlexItem>
+                <FlexItem>
+                  <Button
+                    variant="primary"
+                    icon={<PlusCircleIcon />}
+                    onClick={() => {
+                      // TODO: Implement add user functionality
+                      console.log('Add user clicked for:', selectedContainer)
+                    }}
+                  >
+                    Add User
+                  </Button>
+                </FlexItem>
+              </Flex>
+            </CardHeader>
+            <CardBody>
+              {isLoadingUsers ? (
+                <Flex justifyContent={{ default: 'justifyContentCenter' }} alignItems={{ default: 'alignItemsCenter' }}>
+                  <FlexItem>
+                    <Spinner size="lg" />
+                  </FlexItem>
+                  <FlexItem>
+                    <Content>Loading users...</Content>
+                  </FlexItem>
+                </Flex>
+              ) : (
+                <Table aria-label="User list" variant="compact">
+                  <Thead>
+                    <Tr>
+                      <Th width={25}>Username</Th>
+                      {getDatabaseTypeLabel(selectedContainer!) === 'MariaDB' && (
+                        <Th width={20}>Host</Th>
+                      )}
+                      <Th width={25}>Privileges</Th>
+                      <Th width={15}>Has Password</Th>
+                      {getDatabaseTypeLabel(selectedContainer!) === 'PostgreSQL' && (
+                        <Th width={15}>Valid Until</Th>
+                      )}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {users.map((user, index) => (
+                      <Tr key={index}>
+                        <Td>
+                          <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                            <FlexItem>
+                              <UserIcon />
+                            </FlexItem>
+                            <FlexItem>
+                              <strong>{user.username}</strong>
+                            </FlexItem>
+                          </Flex>
+                        </Td>
+                        {getDatabaseTypeLabel(selectedContainer!) === 'MariaDB' && (
+                          <Td>
+                            <Content component={ContentVariants.small}>
+                              {user.host || 'N/A'}
+                            </Content>
+                          </Td>
+                        )}
+                        <Td>
+                          <Label 
+                            color={
+                              user.privileges === 'Superuser' ? 'red' : 
+                              user.privileges === 'Full Access' ? 'orange' : 
+                              user.privileges === 'Can Create DB' ? 'blue' : 
+                              user.privileges === 'Read Only' ? 'green' : 
+                              'grey'
+                            }
+                            isCompact
+                          >
+                            {user.privileges}
+                          </Label>
+                        </Td>
+                        <Td>
+                          <Label 
+                            color={user.has_password === 'Yes' ? 'green' : 'red'} 
+                            isCompact
+                          >
+                            {user.has_password}
+                          </Label>
+                        </Td>
+                        {getDatabaseTypeLabel(selectedContainer!) === 'PostgreSQL' && (
+                          <Td>{user.valid_until || 'Never'}</Td>
+                        )}
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              )}
             </CardBody>
           </Card>
         </FlexItem>

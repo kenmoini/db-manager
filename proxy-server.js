@@ -475,6 +475,144 @@ app.post('/api/database/connect', async (req, res) => {
   }
 });
 
+app.post('/api/database/users', async (req, res) => {
+  const { host, port, username, password, type } = req.body;
+  
+  if (!host || !port || !username || !type) {
+    return res.status(400).json({ error: 'Missing required connection parameters' });
+  }
+  
+  try {
+    log(`Fetching users from ${type} database at ${host}:${port}`);
+    
+    if (type === 'mariadb' || type === 'mysql') {
+      // Connect to MariaDB/MySQL
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database: 'mysql'
+      });
+      
+      // Get users with their privileges
+      const [users] = await connection.execute(`
+        SELECT 
+          user as username,
+          host,
+          CASE 
+            WHEN Super_priv = 'Y' THEN 'Superuser'
+            WHEN Select_priv = 'Y' AND Insert_priv = 'Y' AND Update_priv = 'Y' AND Delete_priv = 'Y' THEN 'Full Access'
+            WHEN Select_priv = 'Y' THEN 'Read Only'
+            ELSE 'Limited'
+          END as privileges,
+          authentication_string IS NOT NULL as has_password
+        FROM mysql.user
+        ORDER BY user, host
+      `);
+      
+      await connection.end();
+      
+      // Group users by username and combine hosts
+      const userMap = new Map();
+      
+      users.forEach(user => {
+        const key = user.username;
+        if (userMap.has(key)) {
+          const existing = userMap.get(key);
+          // Add host to the list
+          existing.hosts.push(user.host);
+          // Use the highest privilege level
+          if (user.privileges === 'Superuser') {
+            existing.privileges = 'Superuser';
+          } else if (existing.privileges !== 'Superuser' && user.privileges === 'Full Access') {
+            existing.privileges = 'Full Access';
+          } else if (existing.privileges !== 'Superuser' && existing.privileges !== 'Full Access' && user.privileges === 'Read Only') {
+            existing.privileges = 'Read Only';
+          }
+          // Keep password as Yes if any entry has a password
+          if (user.has_password) {
+            existing.has_password = true;
+          }
+        } else {
+          userMap.set(key, {
+            username: user.username,
+            hosts: [user.host],
+            privileges: user.privileges,
+            has_password: user.has_password
+          });
+        }
+      });
+      
+      // Convert map to array and format hosts for display
+      // Filter out system users
+      const formattedUsers = Array.from(userMap.values())
+        .filter(user => !['healthcheck', 'mariadb.sys', 'mysql.sys', 'mysql.session', 'mysql.infoschema'].includes(user.username))
+        .map(user => ({
+          username: user.username,
+          host: user.hosts.join(', '),
+          privileges: user.privileges,
+          has_password: user.has_password ? 'Yes' : 'No'
+        }));
+      
+      res.json({ 
+        success: true, 
+        users: formattedUsers,
+        message: 'Successfully fetched MariaDB/MySQL users' 
+      });
+    } else if (type === 'postgresql') {
+      // Connect to PostgreSQL
+      const client = new PgClient({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database: 'postgres'
+      });
+      
+      await client.connect();
+      
+      // Get users with their privileges, excluding system users
+      const result = await client.query(`
+        SELECT 
+          usename as username,
+          CASE 
+            WHEN usesuper THEN 'Superuser'
+            WHEN usecreatedb THEN 'Can Create DB'
+            ELSE 'Normal User'
+          END as privileges,
+          CASE 
+            WHEN passwd IS NOT NULL THEN 'Yes'
+            ELSE 'No'
+          END as has_password,
+          valuntil as valid_until
+        FROM pg_user
+        WHERE usename NOT IN ('pg_read_all_settings', 'pg_read_all_stats', 'pg_stat_scan_tables', 
+                              'pg_read_server_files', 'pg_write_server_files', 'pg_execute_server_program',
+                              'pg_signal_backend', 'pg_monitor', 'pg_database_owner', 'pg_checkpoint',
+                              'pg_use_reserved_connections', 'pg_create_subscription')
+        ORDER BY usename
+      `);
+      
+      await client.end();
+      
+      res.json({ 
+        success: true, 
+        users: result.rows,
+        message: 'Successfully fetched PostgreSQL users' 
+      });
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('Database users fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch users',
+      details: error.message 
+    });
+  }
+});
+
 app.post('/api/database/query', async (req, res) => {
   const { host, port, username, password, database, type, query } = req.body;
   
