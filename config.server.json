@@ -1,0 +1,56 @@
+{
+  "server": {
+    "port": 3001,
+    "host": "127.0.0.1",
+    "cors": {
+      "enabled": true,
+      "origins": ["http://localhost:5173", "http://localhost:8080"]
+    }
+  },
+  "frontend": {
+    "port": 5173,
+    "host": "localhost"
+  },
+  "containerSocket": {
+    "autoDetect": true,
+    "dockerPath": "/var/run/docker.sock",
+    "podmanPath": "/var/run/podman.sock",
+    "preferredRuntime": "auto"
+  },
+  "storage": {
+    "defaultBasePath": "/opt/db-data",
+    "createIfNotExists": true,
+    "defaultPermissions": {
+      "uid": 999,
+      "gid": 999,
+      "mode": "0700"
+    }
+  },
+  "logging": {
+    "enabled": true,
+    "logFile": "proxy-server.log",
+    "logLevel": "info",
+    "consoleOutput": true
+  },
+  "security": {
+    "allowedOperations": {
+      "createContainer": true,
+      "removeContainer": true,
+      "startContainer": true,
+      "stopContainer": true,
+      "inspectContainer": true,
+      "listContainers": true,
+      "executiveCommands": false
+    },
+    "trustedImages": {
+      "enabled": false,
+      "registries": ["docker.io", "quay.io", "registry.access.redhat.com"]
+    }
+  },
+  "features": {
+    "enableMetrics": false,
+    "enableHealthCheck": true,
+    "enableWebUI": true,
+    "enableAPIOnly": false
+  }
+}

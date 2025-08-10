@@ -16,7 +16,9 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run:*)",
       "mcp__selenium__get_element_text",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(curl:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

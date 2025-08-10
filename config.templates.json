@@ -1,0 +1,173 @@
+{
+  "templates": [
+    {
+      "type": "mariadb",
+      "name": "MariaDB",
+      "description": "Popular MySQL-compatible relational database",
+      "defaultVersion": "latest",
+      "availableVersions": [
+        {
+          "displayName": "latest",
+          "containerTag": "latest",
+          "containerTagUBI": "verylatest-ubi"
+        },
+        {
+          "displayName": "11.2",
+          "containerTag": "11.2",
+          "containerTagUBI": "11.2-ubi"
+        },
+        {
+          "displayName": "11.1",
+          "containerTag": "11.1",
+          "containerTagUBI": "11.1-ubi"
+        },
+        {
+          "displayName": "11.0",
+          "containerTag": "11.0",
+          "containerTagUBI": "11.0-ubi"
+        },
+        {
+          "displayName": "10.11",
+          "containerTag": "10.11",
+          "containerTagUBI": "10.11-ubi"
+        },
+        {
+          "displayName": "10.6",
+          "containerTag": "10.6",
+          "containerTagUBI": "10.6-ubi"
+        }
+      ],
+      "defaultPort": 3306,
+      "icon": "🗄️",
+      "imageRepository": "quay.io/mariadb-foundation/mariadb-devel",
+      "environmentVariables": [
+        {
+          "key": "MYSQL_ROOT_PASSWORD",
+          "label": "Root Password",
+          "description": "Password for the MySQL root user",
+          "required": true,
+          "type": "password"
+        },
+        {
+          "key": "MYSQL_DATABASE",
+          "label": "Database Name",
+          "description": "Name of the initial database to create",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "key": "MYSQL_USER",
+          "label": "Username",
+          "description": "Additional user to create",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "key": "MYSQL_PASSWORD",
+          "label": "User Password",
+          "description": "Password for the additional user",
+          "required": false,
+          "type": "password"
+        }
+      ],
+      "volumeMounts": {
+        "data": "/var/lib/mysql",
+        "config": "/etc/mysql/conf.d"
+      },
+      "healthCheck": {
+        "command": "mysqladmin ping -h localhost",
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      }
+    },
+    {
+      "type": "postgresql",
+      "name": "PostgreSQL",
+      "description": "Advanced open-source relational database",
+      "defaultVersion": "latest",
+      "availableVersions": [
+        {
+          "displayName": "latest",
+          "containerTag": "latest",
+          "containerTagUBI": "latest-ubi"
+        },
+        {
+          "displayName": "16",
+          "containerTag": "16",
+          "containerTagUBI": "16-ubi"
+        },
+        {
+          "displayName": "15",
+          "containerTag": "15",
+          "containerTagUBI": "15-ubi"
+        },
+        {
+          "displayName": "14",
+          "containerTag": "14",
+          "containerTagUBI": "14-ubi"
+        },
+        {
+          "displayName": "13",
+          "containerTag": "13",
+          "containerTagUBI": "13-ubi"
+        },
+        {
+          "displayName": "12",
+          "containerTag": "12",
+          "containerTagUBI": "12-ubi"
+        }
+      ],
+      "defaultPort": 5432,
+      "icon": "🐘",
+      "imageRepository": "postgres",
+      "environmentVariables": [
+        {
+          "key": "POSTGRES_PASSWORD",
+          "label": "Root Password",
+          "description": "Password for the PostgreSQL superuser",
+          "required": true,
+          "type": "password"
+        },
+        {
+          "key": "POSTGRES_DB",
+          "label": "Database Name",
+          "description": "Name of the initial database to create",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "key": "POSTGRES_USER",
+          "label": "Username",
+          "description": "PostgreSQL superuser name (default: postgres)",
+          "required": false,
+          "type": "string",
+          "defaultValue": "postgres"
+        }
+      ],
+      "volumeMounts": {
+        "data": "/var/lib/postgresql/data",
+        "config": "/etc/postgresql"
+      },
+      "healthCheck": {
+        "command": "pg_isready -U postgres",
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      }
+    }
+  ],
+  "customTemplates": [],
+  "settings": {
+    "allowCustomTemplates": true,
+    "validateImages": true,
+    "defaultStoragePath": "/opt/db-data",
+    "passwordPolicy": {
+      "minLength": 12,
+      "requireUppercase": true,
+      "requireLowercase": true,
+      "requireNumbers": true,
+      "requireSpecialChars": true
+    }
+  }
+}

@@ -13,10 +13,12 @@ import {
   Label,
   Icon,
   Content,
-  ContentVariants
+  ContentVariants,
+  Spinner,
+  EmptyState
 } from '@patternfly/react-core'
-import { ArrowRightIcon, InfoIcon } from '@patternfly/react-icons'
-import { databaseTemplates } from '../utils/databaseTemplates'
+import { ArrowRightIcon, InfoIcon, ExclamationTriangleIcon } from '@patternfly/react-icons'
+import { useDatabaseTemplates } from '../hooks/useConfig'
 import { DatabaseTemplate } from '../types'
 
 interface DatabaseSelectorProps {
@@ -25,6 +27,7 @@ interface DatabaseSelectorProps {
 
 export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<DatabaseTemplate | null>(null)
+  const { templates, isLoading, error } = useDatabaseTemplates()
 
   const handleSelect = (template: DatabaseTemplate) => {
     setSelectedTemplate(template)
@@ -41,6 +44,31 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
     if (selectedTemplate) {
       onSelect(selectedTemplate)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <EmptyState>
+        <Spinner />
+        <Title headingLevel="h2" size="lg">
+          Loading database templates...
+        </Title>
+      </EmptyState>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState>
+        <ExclamationTriangleIcon />
+        <Title headingLevel="h2" size="lg">
+          Error loading templates
+        </Title>
+        <Content>
+          {error.message}
+        </Content>
+      </EmptyState>
+    )
   }
 
   return (
@@ -70,7 +98,7 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
               lg: '1fr',
             }}
           >
-            {databaseTemplates.map((template) => (
+            {templates.map((template) => (
               <GalleryItem key={template.type}>
                 <Card
                   onClick={() => handleSelect(template)}

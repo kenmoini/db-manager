@@ -1,6 +1,8 @@
 import { DatabaseTemplate } from '../types'
+import { configService } from '../services/config'
 
-export const databaseTemplates: DatabaseTemplate[] = [
+// Default templates (fallback if config can't be loaded)
+const defaultTemplates: DatabaseTemplate[] = [
   {
     type: 'mariadb',
     name: 'MariaDB',
@@ -90,6 +92,28 @@ export const databaseTemplates: DatabaseTemplate[] = [
     ],
   },
 ]
+
+// Export templates that will be populated from config
+export let databaseTemplates: DatabaseTemplate[] = defaultTemplates
+
+// Load templates from configuration
+export async function loadDatabaseTemplates(): Promise<DatabaseTemplate[]> {
+  try {
+    const templates = await configService.getDatabaseTemplates()
+    if (templates && templates.length > 0) {
+      databaseTemplates = templates
+      return templates
+    }
+  } catch (error) {
+    console.error('Failed to load database templates from config:', error)
+  }
+  // Return default templates if config loading fails
+  databaseTemplates = defaultTemplates
+  return defaultTemplates
+}
+
+// Initialize templates on module load
+loadDatabaseTemplates().catch(console.error)
 
 export function getDatabaseTemplate(type: string): DatabaseTemplate | undefined {
   return databaseTemplates.find(template => template.type === type)

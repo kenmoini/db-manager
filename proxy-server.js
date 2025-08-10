@@ -7,9 +7,39 @@ import net from 'net';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load configuration files
+let serverConfig = {};
+let templatesConfig = {};
+
+try {
+  const configPath = path.join(__dirname, 'config.server.json');
+  if (fs.existsSync(configPath)) {
+    serverConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    console.log('📋 Loaded server configuration from config.server.json');
+  }
+} catch (error) {
+  console.error('⚠️  Error loading config.server.json:', error.message);
+}
+
+try {
+  const templatesPath = path.join(__dirname, 'config.templates.json');
+  if (fs.existsSync(templatesPath)) {
+    templatesConfig = JSON.parse(fs.readFileSync(templatesPath, 'utf8'));
+    console.log('📋 Loaded templates configuration from config.templates.json');
+  }
+} catch (error) {
+  console.error('⚠️  Error loading config.templates.json:', error.message);
+}
 
 // Logging functionality
-const LOG_FILE_PATH = path.join(process.cwd(), 'proxy-server.log');
+const LOG_FILE_PATH = path.join(process.cwd(), serverConfig.logging?.logFile || 'proxy-server.log');
+const LOGGING_ENABLED = serverConfig.logging?.enabled !== false;
+const CONSOLE_OUTPUT = serverConfig.logging?.consoleOutput !== false;
 
 // Create a write stream for the log file (append mode)
 const logStream = fs.createWriteStream(LOG_FILE_PATH, { flags: 'a' });
@@ -21,22 +51,28 @@ const originalConsoleWarn = console.warn;
 
 // Enhanced logging function that writes to both console and file
 function log(level, message, ...args) {
+  if (!LOGGING_ENABLED && level !== 'error') return;
+  
   const timestamp = new Date().toISOString();
   const formattedMessage = args.length > 0 ? `${message} ${args.join(' ')}` : message;
   const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${formattedMessage}`;
   
-  // Write to console with original formatting
-  if (level === 'error') {
-    originalConsoleError(message, ...args);
-  } else if (level === 'warn') {
-    originalConsoleWarn(message, ...args);
-  } else {
-    originalConsoleLog(message, ...args);
+  // Write to console with original formatting if enabled
+  if (CONSOLE_OUTPUT) {
+    if (level === 'error') {
+      originalConsoleError(message, ...args);
+    } else if (level === 'warn') {
+      originalConsoleWarn(message, ...args);
+    } else {
+      originalConsoleLog(message, ...args);
+    }
   }
   
-  // Write to log file (strip ANSI codes and emojis for cleaner file logs)
-  const cleanLogEntry = logEntry.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '').replace(/[^\x00-\x7F]/g, '');
-  logStream.write(cleanLogEntry + '\n');
+  // Write to log file if logging is enabled (strip ANSI codes and emojis for cleaner file logs)
+  if (LOGGING_ENABLED && logStream && !logStream.destroyed) {
+    const cleanLogEntry = logEntry.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '').replace(/[^\x00-\x7F]/g, '');
+    logStream.write(cleanLogEntry + '\n');
+  }
 }
 
 // Override console methods to use our logging function
@@ -61,23 +97,28 @@ process.on('SIGTERM', () => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '127.0.0.1';
+const PORT = process.env.PORT || serverConfig.server?.port || 3001;
+const HOST = process.env.HOST || serverConfig.server?.host || '127.0.0.1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Configure CORS based on environment
+// Configure CORS based on environment and config
+const corsEnabled = serverConfig.server?.cors?.enabled !== false;
 const corsOptions = NODE_ENV === 'production' 
   ? {
-      origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false,
+      origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : 
+              serverConfig.server?.cors?.origins || false,
       credentials: true
     }
   : {
-      origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+      origin: serverConfig.server?.cors?.origins || 
+              ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
       credentials: true
     };
 
-// Enable CORS
-app.use(cors(corsOptions));
+// Enable CORS if configured
+if (corsEnabled) {
+  app.use(cors(corsOptions));
+}
 
 // Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '50mb' }));
@@ -663,6 +704,43 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Configuration API endpoints
+app.get('/api/config/server', (req, res) => {
+  res.json(serverConfig);
+});
+
+app.get('/api/config/templates', (req, res) => {
+  res.json(templatesConfig);
+});
+
+app.put('/api/config/server', (req, res) => {
+  try {
+    const updatedConfig = { ...serverConfig, ...req.body };
+    const configPath = path.join(__dirname, 'config.server.json');
+    fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2));
+    serverConfig = updatedConfig;
+    console.log('✅ Updated server configuration');
+    res.json({ success: true, message: 'Server configuration updated' });
+  } catch (error) {
+    console.error('❌ Error updating server config:', error.message);
+    res.status(500).json({ error: 'Failed to update server configuration' });
+  }
+});
+
+app.put('/api/config/templates', (req, res) => {
+  try {
+    const updatedConfig = { ...templatesConfig, ...req.body };
+    const configPath = path.join(__dirname, 'config.templates.json');
+    fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2));
+    templatesConfig = updatedConfig;
+    console.log('✅ Updated templates configuration');
+    res.json({ success: true, message: 'Templates configuration updated' });
+  } catch (error) {
+    console.error('❌ Error updating templates config:', error.message);
+    res.status(500).json({ error: 'Failed to update templates configuration' });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -671,7 +749,9 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       dockerProxy: '/api/podman/*',
-      filesystem: '/api/filesystem?path=/path/to/browse'
+      filesystem: '/api/filesystem?path=/path/to/browse',
+      configServer: '/api/config/server',
+      configTemplates: '/api/config/templates'
     },
     socketPath: DOCKER_SOCKET
   });
