@@ -8,6 +8,9 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
+import pg from 'pg';
+const { Client: PgClient } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -380,6 +383,145 @@ app.get('/api/filesystem/ls', async (req, res) => {
     res.status(500).json({
       error: 'Filesystem Error',
       message: error.message
+    });
+  }
+});
+
+// Database connection API endpoints
+app.post('/api/database/connect', async (req, res) => {
+  const { containerId, host, port, username, password, database, type } = req.body;
+  
+  if (!host || !port || !username || !type) {
+    return res.status(400).json({ error: 'Missing required connection parameters' });
+  }
+  
+  try {
+    log(`Attempting to connect to ${type} database at ${host}:${port}`);
+    
+    if (type === 'mariadb' || type === 'mysql') {
+      // Connect to MariaDB/MySQL
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database: database || undefined
+      });
+      
+      // Get databases with size info
+      const [databases] = await connection.execute(`
+        SELECT 
+          SCHEMA_NAME as name,
+          ROUND(SUM(DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) as size_mb,
+          DEFAULT_CHARACTER_SET_NAME as encoding,
+          DEFAULT_COLLATION_NAME as collation
+        FROM information_schema.SCHEMATA
+        LEFT JOIN information_schema.TABLES ON SCHEMATA.SCHEMA_NAME = TABLES.TABLE_SCHEMA
+        GROUP BY SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
+        ORDER BY SCHEMA_NAME
+      `);
+      
+      await connection.end();
+      
+      res.json({ 
+        success: true, 
+        databases: databases.map(db => ({
+          ...db,
+          size: db.size_mb ? `${db.size_mb} MB` : '0 MB',
+          owner: username // MySQL doesn't have database owners like PostgreSQL
+        })),
+        message: 'Successfully connected to MariaDB/MySQL' 
+      });
+    } else if (type === 'postgresql') {
+      // Connect to PostgreSQL
+      const client = new PgClient({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database: database || 'postgres'
+      });
+      
+      await client.connect();
+      
+      // Get databases with additional info
+      const result = await client.query(`
+        SELECT datname as name, 
+               pg_size_pretty(pg_database_size(datname)) as size,
+               datcollate as collation,
+               pg_catalog.pg_get_userbyid(datdba) as owner,
+               pg_encoding_to_char(encoding) as encoding
+        FROM pg_database 
+        WHERE datistemplate = false
+        ORDER BY datname
+      `);
+      
+      await client.end();
+      
+      res.json({ 
+        success: true, 
+        databases: result.rows,
+        message: 'Successfully connected to PostgreSQL' 
+      });
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('Database connection error:', error);
+    res.status(500).json({ 
+      error: 'Failed to connect to database',
+      details: error.message 
+    });
+  }
+});
+
+app.post('/api/database/query', async (req, res) => {
+  const { host, port, username, password, database, type, query } = req.body;
+  
+  if (!host || !port || !username || !type || !query) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
+  try {
+    if (type === 'mariadb' || type === 'mysql') {
+      const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database
+      });
+      
+      const [rows, fields] = await connection.execute(query);
+      await connection.end();
+      
+      res.json({ success: true, rows, fields });
+    } else if (type === 'postgresql') {
+      const client = new PgClient({
+        host,
+        port: parseInt(port),
+        user: username,
+        password: password || '',
+        database
+      });
+      
+      await client.connect();
+      const result = await client.query(query);
+      await client.end();
+      
+      res.json({ 
+        success: true, 
+        rows: result.rows, 
+        fields: result.fields 
+      });
+    } else {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+  } catch (error) {
+    log('Database query error:', error);
+    res.status(500).json({ 
+      error: 'Failed to execute query',
+      details: error.message 
     });
   }
 });

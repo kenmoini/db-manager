@@ -17,6 +17,12 @@ import {
   Content,
   ContentVariants,
   Label,
+  TextInput,
+  Button,
+  Form,
+  FormGroup,
+  InputGroup,
+  InputGroupItem,
 } from '@patternfly/react-core'
 import {
   Table,
@@ -29,7 +35,9 @@ import {
 import {
   DatabaseIcon,
   ExclamationTriangleIcon,
-  ConnectedIcon
+  ConnectedIcon,
+  EyeIcon,
+  EyeSlashIcon
 } from '@patternfly/react-icons'
 import { useAllContainers } from '../hooks/usePodman'
 import { podmanService } from '../services/podman'
@@ -43,12 +51,27 @@ interface DatabaseInfo {
   collation?: string
 }
 
+interface ConnectionCredentials {
+  username: string
+  password: string
+  database?: string
+}
+
 export default function ManagedDatabases() {
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null)
   const [isSelectOpen, setIsSelectOpen] = useState(false)
   const [databases, setDatabases] = useState<DatabaseInfo[]>([])
   const [isLoadingDatabases, setIsLoadingDatabases] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  
+  // Connection credentials
+  const [credentials, setCredentials] = useState<ConnectionCredentials>({
+    username: 'root',
+    password: '',
+    database: ''
+  })
   
   const { data: containers, isLoading: isLoadingContainers, error: containersError } = useAllContainers()
 
@@ -64,31 +87,67 @@ export default function ManagedDatabases() {
     setIsSelectOpen(false)
     setDatabases([])
     setConnectionError(null)
+    setIsConnected(false)
     
-    // Auto-load databases when container is selected
-    loadDatabases(container)
+    // Set default username based on database type
+    const dbType = container.labels?.['db-manager.database-type']
+    if (dbType === 'postgresql') {
+      setCredentials(prev => ({ ...prev, username: 'postgres' }))
+    } else {
+      setCredentials(prev => ({ ...prev, username: 'root' }))
+    }
+    
+    // Try to get the root password from labels if available
+    const rootPassword = container.labels?.['db-manager.root-password']
+    if (rootPassword) {
+      setCredentials(prev => ({ ...prev, password: rootPassword }))
+    }
   }
 
-  const loadDatabases = async (container: Container) => {
+  const handleConnect = async () => {
+    if (!selectedContainer) return
+    
     setIsLoadingDatabases(true)
     setConnectionError(null)
+    setIsConnected(false)
 
     try {
-      const dbType = container.labels?.['db-manager.database-type']
-      const port = getContainerPort(container)
+      const dbType = selectedContainer.labels?.['db-manager.database-type']
+      const port = getContainerPort(selectedContainer)
       
       if (!port) {
         throw new Error('No exposed port found for database container')
       }
 
-      // For now, we'll simulate the database connection
-      // In a real implementation, this would make an API call to a backend service
-      // that connects to the database and lists the databases
-      const mockDatabases = await simulateDatabaseConnection(dbType)
-      setDatabases(mockDatabases)
+      // Make API call to connect to database
+      const response = await fetch('http://localhost:3000/api/database/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          containerId: selectedContainer.id,
+          host: 'localhost', // Containers are accessible via localhost when ports are mapped
+          port: port,
+          username: credentials.username,
+          password: credentials.password,
+          database: credentials.database || undefined,
+          type: dbType
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to connect to database')
+      }
+
+      setDatabases(data.databases || [])
+      setIsConnected(true)
     } catch (error) {
-      console.error('Error loading databases:', error)
+      console.error('Error connecting to database:', error)
       setConnectionError(error instanceof Error ? error.message : 'Failed to connect to database')
+      setIsConnected(false)
     } finally {
       setIsLoadingDatabases(false)
     }
@@ -104,45 +163,17 @@ export default function ManagedDatabases() {
       }
     }
     
-    // Fallback to parsing from ports array
+    // Fallback to parsing from ports array - get the public port
     const ports = container.ports || []
     const validPorts = ports.filter(port => 
-      port && port.privatePort
+      port && port.publicPort && port.privatePort
     )
     
     if (validPorts.length > 0) {
-      const port = validPorts[0]
-      return port.publicPort || port.privatePort || null
+      return validPorts[0].publicPort || null
     }
     
     return null
-  }
-
-  // Simulate database connection - in a real app this would be a backend API call
-  const simulateDatabaseConnection = async (dbType: string): Promise<DatabaseInfo[]> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Mock different database types
-    if (dbType === 'mariadb' || dbType === 'mysql') {
-      return [
-        { name: 'information_schema', size: '2.1 MB', owner: 'root', encoding: 'utf8', collation: 'utf8_general_ci' },
-        { name: 'performance_schema', size: '0 bytes', owner: 'root', encoding: 'utf8', collation: 'utf8_general_ci' },
-        { name: 'mysql', size: '2.8 MB', owner: 'root', encoding: 'utf8', collation: 'utf8_general_ci' },
-        { name: 'test_db', size: '156 KB', owner: 'root', encoding: 'utf8', collation: 'utf8_general_ci' },
-        { name: 'mock_app_database', size: '45.2 MB', owner: 'mock_app_user', encoding: 'utf8mb4', collation: 'utf8mb4_unicode_ci' }
-      ]
-    } else if (dbType === 'postgresql') {
-      return [
-        { name: 'postgres', size: '8.4 MB', owner: 'postgres', encoding: 'UTF8', collation: 'en_US.utf8' },
-        { name: 'template0', size: '8.2 MB', owner: 'postgres', encoding: 'UTF8', collation: 'en_US.utf8' },
-        { name: 'template1', size: '8.2 MB', owner: 'postgres', encoding: 'UTF8', collation: 'en_US.utf8' },
-        { name: 'mock_app_database', size: '23.7 MB', owner: 'mock_app_user', encoding: 'UTF8', collation: 'en_US.utf8' },
-        { name: 'analytics', size: '156.3 MB', owner: 'analytics_user', encoding: 'UTF8', collation: 'en_US.utf8' }
-      ]
-    }
-    
-    return []
   }
 
   const getDatabaseTypeLabel = (container: Container) => {
@@ -216,9 +247,8 @@ export default function ManagedDatabases() {
             </Title>
           </CardHeader>
           <CardBody>
-            <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
-              <FlexItem>
-                <Content component={ContentVariants.small}>Select a database container:</Content>
+            <Form>
+              <FormGroup label="Database Container" isRequired>
                 <Select
                   isOpen={isSelectOpen}
                   selected={selectedContainer?.id}
@@ -252,98 +282,139 @@ export default function ManagedDatabases() {
                         </FlexItem>
                         <FlexItem>
                           <Label color="green" isCompact>
-                            <ConnectedIcon /> Running
+                            <ConnectedIcon /> Port {getContainerPort(container)}
                           </Label>
                         </FlexItem>
                       </Flex>
                     </SelectOption>
                   ))}
                 </Select>
-              </FlexItem>
+              </FormGroup>
 
               {selectedContainer && (
-                <FlexItem>
-                  <Alert 
-                    variant={connectionError ? AlertVariant.danger : AlertVariant.info} 
-                    title={connectionError || `Connected to ${getDatabaseTypeLabel(selectedContainer)} container`} 
-                    isInline
-                  >
-                    {!connectionError && (
-                      <Content>
-                        Container: <strong>{getContainerDisplayName(selectedContainer)}</strong> | 
-                        Port: <strong>{getContainerPort(selectedContainer)}</strong> | 
-                        Type: <strong>{getDatabaseTypeLabel(selectedContainer)}</strong>
-                      </Content>
-                    )}
-                  </Alert>
-                </FlexItem>
+                <>
+                  <FormGroup label="Username" isRequired>
+                    <TextInput
+                      value={credentials.username}
+                      onChange={(_event, value) => setCredentials(prev => ({ ...prev, username: value }))}
+                      type="text"
+                      aria-label="Database username"
+                    />
+                  </FormGroup>
+
+                  <FormGroup label="Password">
+                    <InputGroup>
+                      <InputGroupItem isFill>
+                        <TextInput
+                          value={credentials.password}
+                          onChange={(_event, value) => setCredentials(prev => ({ ...prev, password: value }))}
+                          type={showPassword ? 'text' : 'password'}
+                          aria-label="Database password"
+                        />
+                      </InputGroupItem>
+                      <InputGroupItem>
+                        <Button
+                          variant="control"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                        </Button>
+                      </InputGroupItem>
+                    </InputGroup>
+                  </FormGroup>
+
+                  <FormGroup label="Database (optional)">
+                    <TextInput
+                      value={credentials.database}
+                      onChange={(_event, value) => setCredentials(prev => ({ ...prev, database: value }))}
+                      type="text"
+                      aria-label="Database name"
+                      placeholder={getDatabaseTypeLabel(selectedContainer) === 'PostgreSQL' ? 'postgres' : ''}
+                    />
+                  </FormGroup>
+
+                  <FormGroup>
+                    <Button
+                      variant="primary"
+                      onClick={handleConnect}
+                      isDisabled={!credentials.username || isLoadingDatabases}
+                      isLoading={isLoadingDatabases}
+                    >
+                      Connect to Database
+                    </Button>
+                  </FormGroup>
+                </>
               )}
-            </Flex>
+
+              {connectionError && (
+                <Alert 
+                  variant={AlertVariant.danger} 
+                  title="Connection Failed" 
+                  isInline
+                >
+                  {connectionError}
+                </Alert>
+              )}
+
+              {isConnected && !connectionError && (
+                <Alert 
+                  variant={AlertVariant.success} 
+                  title={`Connected to ${getDatabaseTypeLabel(selectedContainer!)} database`} 
+                  isInline
+                >
+                  <Content>
+                    Successfully connected as <strong>{credentials.username}</strong> to{' '}
+                    <strong>{getContainerDisplayName(selectedContainer!)}</strong> on port{' '}
+                    <strong>{getContainerPort(selectedContainer!)}</strong>
+                  </Content>
+                </Alert>
+              )}
+            </Form>
           </CardBody>
         </Card>
       </FlexItem>
 
-      {selectedContainer && !connectionError && (
+      {isConnected && databases.length > 0 && (
         <FlexItem>
           <Card>
             <CardHeader>
               <Title headingLevel="h3" size="lg">
-                Databases in {getContainerDisplayName(selectedContainer)}
+                Databases in {getContainerDisplayName(selectedContainer!)}
               </Title>
             </CardHeader>
             <CardBody>
-              {isLoadingDatabases ? (
-                <Flex justifyContent={{ default: 'justifyContentCenter' }} alignItems={{ default: 'alignItemsCenter' }}>
-                  <FlexItem>
-                    <Spinner size="lg" />
-                  </FlexItem>
-                  <FlexItem>
-                    <Content>Connecting to database and retrieving database list...</Content>
-                  </FlexItem>
-                </Flex>
-              ) : databases.length > 0 ? (
-                <Table aria-label="Database list" variant="compact">
-                  <Thead>
-                    <Tr>
-                      <Th width={30}>Database Name</Th>
-                      <Th width={20}>Size</Th>
-                      <Th width={20}>Owner</Th>
-                      <Th width={15}>Encoding</Th>
-                      <Th width={15}>Collation</Th>
+              <Table aria-label="Database list" variant="compact">
+                <Thead>
+                  <Tr>
+                    <Th width={30}>Database Name</Th>
+                    <Th width={20}>Size</Th>
+                    <Th width={20}>Owner</Th>
+                    <Th width={15}>Encoding</Th>
+                    <Th width={15}>Collation</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {databases.map((db, index) => (
+                    <Tr key={index}>
+                      <Td>
+                        <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                          <FlexItem>
+                            <DatabaseIcon />
+                          </FlexItem>
+                          <FlexItem>
+                            <strong>{db.name}</strong>
+                          </FlexItem>
+                        </Flex>
+                      </Td>
+                      <Td>{db.size || 'N/A'}</Td>
+                      <Td>{db.owner || 'N/A'}</Td>
+                      <Td>{db.encoding || 'N/A'}</Td>
+                      <Td>{db.collation || 'N/A'}</Td>
                     </Tr>
-                  </Thead>
-                  <Tbody>
-                    {databases.map((db, index) => (
-                      <Tr key={index}>
-                        <Td>
-                          <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                            <FlexItem>
-                              <DatabaseIcon />
-                            </FlexItem>
-                            <FlexItem>
-                              <strong>{db.name}</strong>
-                            </FlexItem>
-                          </Flex>
-                        </Td>
-                        <Td>{db.size || 'N/A'}</Td>
-                        <Td>{db.owner || 'N/A'}</Td>
-                        <Td>{db.encoding || 'N/A'}</Td>
-                        <Td>{db.collation || 'N/A'}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              ) : (
-                <EmptyState>
-                  <DatabaseIcon />
-                  <Title headingLevel="h4" size="md">
-                    No databases found
-                  </Title>
-                  <Content>
-                    This database container appears to have no databases or the connection failed.
-                  </Content>
-                </EmptyState>
-              )}
+                  ))}
+                </Tbody>
+              </Table>
             </CardBody>
           </Card>
         </FlexItem>
