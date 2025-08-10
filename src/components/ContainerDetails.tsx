@@ -264,70 +264,94 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
             })()}
           </CardBody>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <Title headingLevel="h3" size="lg">
-                <Icon>
-                  <HddIcon />
-                </Icon>{' '}
-                Storage
-              </Title>
-            </CardTitle>
-          </CardHeader>
-          <CardBody>
-            {container.mounts && container.mounts.length > 0 ? (
-              <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
-                {container.mounts.map((mount, index) => (
-                  <FlexItem key={index}>
-                    <Card isCompact>
-                      <CardBody>
-                        <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
-                          <FlexItem>
-                            <Content>
-                              <strong>Host Path:</strong>
-                            </Content>
-                            <Content component={ContentVariants.small}>
-                              {mount.source}
-                            </Content>
-                          </FlexItem>
-                          <FlexItem>
-                            <Content>
-                              <strong>Container Path:</strong>
-                            </Content>
-                            <Content component={ContentVariants.small}>
-                              {mount.destination}
-                            </Content>
-                          </FlexItem>
-                          <FlexItem>
-                            <Content>
-                              <strong>Flags:</strong>
-                            </Content>
-                            <LabelGroup>
-                              <Label variant="outline" color="grey">
-                                {mount.mode}
-                              </Label>
-                              <Label variant="outline" color={mount.rw ? 'green' : 'orange'}>
-                                {mount.rw ? 'Read/Write' : 'Read Only'}
-                              </Label>
-                            </LabelGroup>
-                          </FlexItem>
-                        </Flex>
-                      </CardBody>
-                    </Card>
-                  </FlexItem>
-                ))}
-              </Flex>
-            ) : (
-              <EmptyState>
-                <InfoIcon />
-                <Title headingLevel="h4" size="lg">
-                  No mounted volumes
+        {container.mounts && container.mounts.length > 0 && (
+          <Card style={{ marginTop: '1.25rem' }}>
+            <CardHeader>
+              <CardTitle>
+                <Title headingLevel="h3" size="lg">
+                  <Icon>
+                    <HddIcon />
+                  </Icon>{' '}
+                  Storage
                 </Title>
-              </EmptyState>
-            )}
-          </CardBody>
-        </Card>
+              </CardTitle>
+            </CardHeader>
+            <CardBody>
+              <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
+                {container.mounts.map((mount: any, index) => {
+                  // Handle both lowercase and uppercase property names from different API versions
+                  const source = mount.source || mount.Source || 'unknown'
+                  const destination = mount.destination || mount.Destination || 'unknown'
+                  const mode = mount.mode || mount.Mode || 'unknown'
+                  const rw = mount.rw !== undefined ? mount.rw : (mount.RW !== undefined ? mount.RW : true)
+                  const mountType = mount.type || mount.Type || 'bind'
+                  const driver = mount.driver || mount.Driver || ''
+                  const name = mount.name || mount.Name || ''
+                  
+                  return (
+                    <FlexItem key={index}>
+                      <Card isCompact>
+                        <CardBody>
+                          <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                            {mountType === 'volume' && name && (
+                              <FlexItem>
+                                <Content>
+                                  <strong>Volume Name:</strong>
+                                </Content>
+                                <Content component={ContentVariants.small}>
+                                  {name}
+                                </Content>
+                              </FlexItem>
+                            )}
+                            <FlexItem>
+                              <Content>
+                                <strong>{mountType === 'volume' ? 'Volume Source' : 'Host Path'}:</strong>
+                              </Content>
+                              <Content component={ContentVariants.small}>
+                                {source}
+                              </Content>
+                            </FlexItem>
+                            <FlexItem>
+                              <Content>
+                                <strong>Container Path:</strong>
+                              </Content>
+                              <Content component={ContentVariants.small}>
+                                {destination}
+                              </Content>
+                            </FlexItem>
+                            <FlexItem>
+                              <Content>
+                                <strong>Properties:</strong>
+                              </Content>
+                              <LabelGroup>
+                                <Label variant="outline" color="blue">
+                                  {mountType}
+                                </Label>
+                                {mode && mode !== 'unknown' && (
+                                  <Label variant="outline" color="grey">
+                                    {mode}
+                                  </Label>
+                                )}
+                                <Label variant="outline" color={rw ? 'green' : 'orange'}>
+                                  {rw ? 'Read/Write' : 'Read Only'}
+                                </Label>
+                                {driver && (
+                                  <Label variant="outline" color="grey">
+                                    Driver: {driver}
+                                  </Label>
+                                )}
+                              </LabelGroup>
+                            </FlexItem>
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    </FlexItem>
+                  )
+                })}
+              </Flex>
+            </CardBody>
+          </Card>
+        )}
       </GridItem>
 
       <GridItem xl={4} lg={12} md={12}>
