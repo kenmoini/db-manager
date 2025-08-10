@@ -248,6 +248,43 @@ app.all('/api/podman/*', async (req, res) => {
   }
 });
 
+// Filesystem listing endpoint (for checking if path exists)
+app.get('/api/filesystem/ls', async (req, res) => {
+  try {
+    const dirPath = req.query.path || '/';
+    
+    // Security check - prevent directory traversal attacks
+    const safePath = path.resolve(dirPath);
+    if (!safePath.startsWith('/')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    
+    // Check if path exists
+    if (!fs.existsSync(safePath)) {
+      return res.status(404).json({ error: 'Path not found' });
+    }
+    
+    const stats = fs.statSync(safePath);
+    
+    res.json({
+      exists: true,
+      isDirectory: stats.isDirectory(),
+      isFile: stats.isFile(),
+      path: safePath,
+      size: stats.size,
+      modified: stats.mtime,
+      permissions: stats.mode
+    });
+    
+  } catch (error) {
+    console.error(`❌ Filesystem ls error: ${error.message}`);
+    res.status(500).json({
+      error: 'Filesystem Error',
+      message: error.message
+    });
+  }
+});
+
 // Filesystem browsing endpoint
 app.get('/api/filesystem', async (req, res) => {
   try {
@@ -472,9 +509,37 @@ app.post('/api/container/user-info', async (req, res) => {
     
     console.log(`🔍 Getting user info for image: ${image}`);
     
-    // Determine the container runtime command (podman or docker)
+    // Determine the container runtime command based on the socket path
     const isDockerSocket = DOCKER_SOCKET.includes('docker.sock');
-    const containerCmd = isDockerSocket ? 'docker' : 'podman';
+    let containerCmd;
+    
+    // Check which command is actually available
+    try {
+      if (isDockerSocket) {
+        // Try docker first
+        execSync('which docker', { encoding: 'utf8', stdio: 'ignore' });
+        containerCmd = 'docker';
+      } else {
+        // Try podman first
+        execSync('which podman', { encoding: 'utf8', stdio: 'ignore' });
+        containerCmd = 'podman';
+      }
+    } catch (e) {
+      // Fallback: try the other command
+      try {
+        if (isDockerSocket) {
+          execSync('which podman', { encoding: 'utf8', stdio: 'ignore' });
+          containerCmd = 'podman';
+          console.log(`⚠️ Docker socket detected but using podman command`);
+        } else {
+          execSync('which docker', { encoding: 'utf8', stdio: 'ignore' });
+          containerCmd = 'docker';
+          console.log(`⚠️ Podman socket detected but using docker command`);
+        }
+      } catch (fallbackError) {
+        throw new Error('Neither docker nor podman command is available in PATH');
+      }
+    }
     
     // Run container to get user info
     const command = `${containerCmd} run --rm ${image} id`;

@@ -44,6 +44,7 @@ import {
   ExclamationCircleIcon,
   SpinnerIcon
 } from '@patternfly/react-icons'
+import { uniqueNamesGenerator, adjectives, colors, animals } from 'unique-names-generator'
 import { useDeployDatabase } from '../hooks/usePodman'
 import { databaseTemplates, generateRandomPassword, validateDatabaseName, validatePort } from '../utils/databaseTemplates'
 import { DatabaseConfig, DatabaseTemplate } from '../types'
@@ -61,16 +62,25 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
     return defaultVersionObj?.containerTag || template.defaultVersion
   }
 
+  const generateDatabaseName = (dbType: string) => {
+    return uniqueNamesGenerator({
+      dictionaries: [adjectives, colors, animals],
+      separator: '-',
+      length: 3,
+      style: 'lowerCase'
+    })
+  }
+
   const [selectedTemplate, setSelectedTemplate] = useState<DatabaseTemplate>(
     template || databaseTemplates[0]
   )
   const [config, setConfig] = useState<DatabaseConfig>({
     type: selectedTemplate.type,
-    name: '',
+    name: generateDatabaseName(selectedTemplate.type),
     version: getDefaultVersion(selectedTemplate),
     rootPassword: '',
     port: selectedTemplate.defaultPort,
-    persistentStorage: true,
+    persistentStorage: false,
     storagePath: '',
     imageRepository: selectedTemplate.imageRepository,
     environment: {},
@@ -159,6 +169,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
       setConfig(prev => ({
         ...prev,
         type: template.type,
+        name: generateDatabaseName(template.type),
         version: getDefaultVersion(template),
         port: template.defaultPort,
         imageRepository: template.imageRepository,
@@ -278,16 +289,6 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
         <Toolbar>
           <ToolbarContent>
             <ToolbarItem>
-              <Button
-                variant="link"
-                onClick={onCancel}
-                icon={<ArrowLeftIcon />}
-                iconPosition="start"
-              >
-                Back
-              </Button>
-            </ToolbarItem>
-            <ToolbarItem>
               <Flex direction={{ default: 'column' }}>
                 <FlexItem>
                   <Title headingLevel="h2" size="xl">
@@ -330,13 +331,26 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                               isRequired
                               fieldId="name"
                             >
-                              <TextInput
-                                id="name"
-                                value={config.name}
-                                onChange={(_event, value) => handleInputChange('name', value)}
-                                placeholder="my-database"
-                                validated={getValidationState('name')}
-                              />
+                              <InputGroup>
+                                <InputGroupItem isFill>
+                                  <TextInput
+                                    id="name"
+                                    value={config.name}
+                                    onChange={(_event, value) => handleInputChange('name', value)}
+                                    placeholder="my-database"
+                                    validated={getValidationState('name')}
+                                    autoComplete="off"
+                                  />
+                                </InputGroupItem>
+                                <InputGroupItem>
+                                  <Button
+                                    variant="control"
+                                    onClick={() => handleInputChange('name', generateDatabaseName(selectedTemplate.type))}
+                                    icon={<SyncAltIcon />}
+                                    aria-label="Generate new name"
+                                  />
+                                </InputGroupItem>
+                              </InputGroup>
                               {errors.name && (
                                 <FormHelperText>
                                   <HelperText>
@@ -375,7 +389,9 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                               <InputGroup>
                                 <InputGroupItem isFill>
                                   <NumberInput
-                                    id="port"
+                                    inputProps={{ id: 'port', autoComplete: 'off' }}
+                                    inputName="port"
+                                    inputAriaLabel="Port number"
                                     value={config.port}
                                     onMinus={() => handleInputChange('port', Math.max(1024, config.port - 1))}
                                     onPlus={() => handleInputChange('port', Math.min(65535, config.port + 1))}
@@ -437,6 +453,15 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                   </div>
                                 </InputGroupItem>
                               </InputGroup>
+                              {errors.port && (
+                                <FormHelperText>
+                                  <HelperText>
+                                    <HelperTextItem variant="error">
+                                      {errors.port}
+                                    </HelperTextItem>
+                                  </HelperText>
+                                </FormHelperText>
+                              )}
                             </FormGroup>
                           </GridItem>
                         </Grid>
@@ -473,6 +498,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                     onChange={(_event, value) => handleInputChange('rootPassword', value)}
                                     placeholder="Enter secure password"
                                     validated={getValidationState('rootPassword')}
+                                    autoComplete="new-password"
                                   />
                                 </InputGroupItem>
                                 <InputGroupItem>
@@ -521,6 +547,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                           onChange={(_event, value) => handleEnvironmentChange(envVar.key, value)}
                                           placeholder={envVar.description}
                                           validated={getValidationState(envVar.key)}
+                                          autoComplete="new-password"
                                         />
                                       </InputGroupItem>
                                       <InputGroupItem>
@@ -545,6 +572,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                       onChange={(_event, value) => handleEnvironmentChange(envVar.key, value)}
                                       placeholder={envVar.description}
                                       validated={getValidationState(envVar.key)}
+                                      autoComplete="off"
                                     />
                                   )}
                                   <FormHelperText>
@@ -612,6 +640,7 @@ export default function DeploymentForm({ template, onCancel, onSuccess }: Deploy
                                       onChange={(_event, value) => handleInputChange('storagePath', value)}
                                       placeholder="/path/to/database/data"
                                       validated={getValidationState('storagePath')}
+                                      autoComplete="off"
                                     />
                                   </InputGroupItem>
                                   <InputGroupItem>

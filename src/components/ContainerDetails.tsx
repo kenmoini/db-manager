@@ -266,47 +266,47 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
           </CardHeader>
           <CardBody>
             {container.mounts && container.mounts.length > 0 ? (
-              <DescriptionList>
-                {container.mounts.slice(0, 3).map((mount, index) => (
-                  <DescriptionListGroup key={index}>
-                    <DescriptionListTerm>Mount {index + 1}</DescriptionListTerm>
-                    <DescriptionListDescription>
-                      <Flex direction={{ default: 'column' }} gap={{ default: 'gapXs' }}>
-                        <FlexItem>
-                          <Content component={ContentVariants.small}>
-                            <strong>Source:</strong> {mount.source}
-                          </Content>
-                        </FlexItem>
-                        <FlexItem>
-                          <Content component={ContentVariants.small}>
-                            <strong>Destination:</strong> {mount.destination}
-                          </Content>
-                        </FlexItem>
-                        <FlexItem>
-                          <LabelGroup>
-                            <Label variant="outline" color="grey">
-                              {mount.mode}
-                            </Label>
-                            <Label variant="outline" color={mount.rw ? 'green' : 'orange'}>
-                              {mount.rw ? 'RW' : 'RO'}
-                            </Label>
-                          </LabelGroup>
-                        </FlexItem>
-                      </Flex>
-                    </DescriptionListDescription>
-                  </DescriptionListGroup>
+              <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
+                {container.mounts.map((mount, index) => (
+                  <FlexItem key={index}>
+                    <Card isCompact>
+                      <CardBody>
+                        <Flex direction={{ default: 'column' }} gap={{ default: 'gapSm' }}>
+                          <FlexItem>
+                            <Content>
+                              <strong>Host Path:</strong>
+                            </Content>
+                            <Content component={ContentVariants.small}>
+                              {mount.source}
+                            </Content>
+                          </FlexItem>
+                          <FlexItem>
+                            <Content>
+                              <strong>Container Path:</strong>
+                            </Content>
+                            <Content component={ContentVariants.small}>
+                              {mount.destination}
+                            </Content>
+                          </FlexItem>
+                          <FlexItem>
+                            <Content>
+                              <strong>Flags:</strong>
+                            </Content>
+                            <LabelGroup>
+                              <Label variant="outline" color="grey">
+                                {mount.mode}
+                              </Label>
+                              <Label variant="outline" color={mount.rw ? 'green' : 'orange'}>
+                                {mount.rw ? 'Read/Write' : 'Read Only'}
+                              </Label>
+                            </LabelGroup>
+                          </FlexItem>
+                        </Flex>
+                      </CardBody>
+                    </Card>
+                  </FlexItem>
                 ))}
-                {container.mounts.length > 3 && (
-                  <DescriptionListGroup>
-                    <DescriptionListTerm>Additional</DescriptionListTerm>
-                    <DescriptionListDescription>
-                      <Label variant="outline" color="grey">
-                        +{container.mounts.length - 3} more mounts
-                      </Label>
-                    </DescriptionListDescription>
-                  </DescriptionListGroup>
-                )}
-              </DescriptionList>
+              </Flex>
             ) : (
               <EmptyState>
                 <InfoIcon />
@@ -511,20 +511,62 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
     <Flex direction={{ default: 'column' }} gap={{ default: 'gapLg' }}>
       {/* Header */}
       <FlexItem>
+        <Toolbar>
+          <ToolbarContent>
+            <ToolbarItem>
+              <Button
+                variant="link"
+                onClick={onBack}
+                icon={<ArrowLeftIcon />}
+                iconPosition="start"
+              >
+                Back to List
+              </Button>
+            </ToolbarItem>
+            <ToolbarItem alignment={{ default: 'alignRight' }}>
+              <Flex gap={{ default: 'gapSm' }}>
+                {container.state === 'running' ? (
+                  <Button
+                    variant="secondary"
+                    onClick={handleStop}
+                    isDisabled={stopMutation.isPending}
+                    icon={<StopIcon />}
+                  >
+                    Stop
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={handleStart}
+                    isDisabled={startMutation.isPending}
+                    icon={<PlayIcon />}
+                  >
+                    Start
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={handleRestart}
+                  isDisabled={restartMutation.isPending}
+                  icon={<RedoIcon />}
+                >
+                  Restart
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setShowConfirmDelete(true)}
+                  icon={<TrashIcon />}
+                >
+                  Delete
+                </Button>
+              </Flex>
+            </ToolbarItem>
+          </ToolbarContent>
+        </Toolbar>
         <Card>
           <CardBody>
             <Toolbar>
               <ToolbarContent>
-                <ToolbarItem>
-                  <Button
-                    variant="link"
-                    onClick={onBack}
-                    icon={<ArrowLeftIcon />}
-                    iconPosition="start"
-                  >
-                    Back to List
-                  </Button>
-                </ToolbarItem>
                 <ToolbarItem>
                   <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapMd' }}>
                     <FlexItem>
@@ -556,44 +598,6 @@ export default function ContainerDetails({ container, onBack }: ContainerDetails
                       <Label color={getStatusColor(container.state)}>
                         {state.label}
                       </Label>
-                    </FlexItem>
-                    <FlexItem>
-                      <Flex gap={{ default: 'gapSm' }}>
-                        {container.state === 'running' ? (
-                          <Button
-                            variant="secondary"
-                            onClick={handleStop}
-                            isDisabled={stopMutation.isPending}
-                            icon={<StopIcon />}
-                          >
-                            Stop
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            onClick={handleStart}
-                            isDisabled={startMutation.isPending}
-                            icon={<PlayIcon />}
-                          >
-                            Start
-                          </Button>
-                        )}
-                        <Button
-                          variant="secondary"
-                          onClick={handleRestart}
-                          isDisabled={restartMutation.isPending}
-                          icon={<RedoIcon />}
-                        >
-                          Restart
-                        </Button>
-                        <Button
-                          variant="danger"
-                          onClick={() => setShowConfirmDelete(true)}
-                          icon={<TrashIcon />}
-                        >
-                          Delete
-                        </Button>
-                      </Flex>
                     </FlexItem>
                   </Flex>
                 </ToolbarItem>

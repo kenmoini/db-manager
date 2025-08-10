@@ -14,7 +14,9 @@
       "mcp__selenium__navigate",
       "Bash(npx tsc:*)",
       "Bash(npm run typecheck:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "mcp__selenium__get_element_text",
+      "Bash(env)"
     ],
     "deny": []
   }

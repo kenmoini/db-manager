@@ -1,5 +1,7 @@
 # Bash commands
 - npm run dev:full: Start the development environment and run in the background
+- npm test: Run unit tests with Vitest
+- npm run test:run: Run tests once and exit
 
 # Core Development Philosophy
 

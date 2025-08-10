@@ -34,6 +34,13 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
     setSelectedTemplate(template)
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent, template: DatabaseTemplate) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleSelect(template)
+    }
+  }
+
   const handleContinue = () => {
     if (selectedTemplate) {
       onSelect(selectedTemplate)
@@ -70,9 +77,8 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
             {databaseTemplates.map((template) => (
               <GalleryItem key={template.type}>
                 <Card
-                  isSelectable
-                  isSelected={selectedTemplate?.type === template.type}
                   onClick={() => handleSelect(template)}
+                  onKeyDown={(event) => handleKeyDown(event, template)}
                   style={{ 
                     cursor: 'pointer',
                     border: selectedTemplate?.type === template.type 
@@ -82,6 +88,8 @@ export default function DatabaseSelector({ onSelect }: DatabaseSelectorProps) {
                     minHeight: '280px'
                   }}
                   aria-label={`Select ${template.name} database`}
+                  role="button"
+                  tabIndex={0}
                 >
                   <CardHeader style={{ paddingBottom: '8px' }}>
                     <CardTitle>
