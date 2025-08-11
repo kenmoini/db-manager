@@ -6,6 +6,8 @@ A React-based application built with PatternFly components that provides an intu
 
 ![Deploy a Database in just a few clicks](img/deployDatabase.jpg)
 
+[More Screenshots](img/)
+
 ## ✨ Features
 
 ### 🚀 Database Deployment
