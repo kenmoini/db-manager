@@ -496,7 +496,7 @@ export default function ManagedDatabases() {
   }
 
   return (
-    <Flex direction={{ default: 'column' }} gap={{ default: 'gapNone' }}>
+    <Flex direction={{ default: 'column' }} gap={{ default: 'gapMd' }}>
       <FlexItem>
         <Title headingLevel="h2" size="xl">
           Managed Databases
@@ -671,64 +671,6 @@ export default function ManagedDatabases() {
         </Card>
       </FlexItem>
 
-      {isConnected && databases.length > 0 && (
-        <FlexItem>
-          <Card>
-            <CardHeader>
-              <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-                <FlexItem>
-                  <Title headingLevel="h3" size="lg">
-                    Databases in {getContainerDisplayName(selectedContainer!)}
-                  </Title>
-                </FlexItem>
-                <FlexItem>
-                  <Button
-                    variant="primary"
-                    icon={<PlusCircleIcon />}
-                    onClick={() => setIsAddDatabaseModalOpen(true)}
-                  >
-                    Add Database
-                  </Button>
-                </FlexItem>
-              </Flex>
-            </CardHeader>
-            <CardBody>
-              <Table aria-label="Database list" variant="compact">
-                <Thead>
-                  <Tr>
-                    <Th width={30}>Database Name</Th>
-                    <Th width={20}>Size</Th>
-                    <Th width={20}>Owner</Th>
-                    <Th width={15}>Encoding</Th>
-                    <Th width={15}>Collation</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {databases.map((db, index) => (
-                    <Tr key={index}>
-                      <Td>
-                        <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                          <FlexItem>
-                            <DatabaseIcon />
-                          </FlexItem>
-                          <FlexItem>
-                            <strong>{db.name}</strong>
-                          </FlexItem>
-                        </Flex>
-                      </Td>
-                      <Td>{db.size || 'N/A'}</Td>
-                      <Td>{db.owner || 'N/A'}</Td>
-                      <Td>{db.encoding || 'N/A'}</Td>
-                      <Td>{db.collation || 'N/A'}</Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </CardBody>
-          </Card>
-        </FlexItem>
-      )}
-
       {isConnected && users.length > 0 && (
         <FlexItem>
           <Card>
@@ -829,6 +771,64 @@ export default function ManagedDatabases() {
           </Card>
         </FlexItem>
       )}
+      {isConnected && databases.length > 0 && (
+        <FlexItem>
+          <Card>
+            <CardHeader>
+              <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+                <FlexItem>
+                  <Title headingLevel="h3" size="lg">
+                    Databases in {getContainerDisplayName(selectedContainer!)}
+                  </Title>
+                </FlexItem>
+                <FlexItem>
+                  <Button
+                    variant="primary"
+                    icon={<PlusCircleIcon />}
+                    onClick={() => setIsAddDatabaseModalOpen(true)}
+                  >
+                    Add Database
+                  </Button>
+                </FlexItem>
+              </Flex>
+            </CardHeader>
+            <CardBody>
+              <Table aria-label="Database list" variant="compact">
+                <Thead>
+                  <Tr>
+                    <Th width={30}>Database Name</Th>
+                    <Th width={20}>Size</Th>
+                    <Th width={20}>Owner</Th>
+                    <Th width={15}>Encoding</Th>
+                    <Th width={15}>Collation</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {databases.map((db, index) => (
+                    <Tr key={index}>
+                      <Td>
+                        <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+                          <FlexItem>
+                            <DatabaseIcon />
+                          </FlexItem>
+                          <FlexItem>
+                            <strong>{db.name}</strong>
+                          </FlexItem>
+                        </Flex>
+                      </Td>
+                      <Td>{db.size || 'N/A'}</Td>
+                      <Td>{db.owner || 'N/A'}</Td>
+                      <Td>{db.encoding || 'N/A'}</Td>
+                      <Td>{db.collation || 'N/A'}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </CardBody>
+          </Card>
+        </FlexItem>
+      )}
+
 
       {isConnected && (
         <FlexItem>

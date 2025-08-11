@@ -4,6 +4,8 @@
 
 A React-based application built with PatternFly components that provides an intuitive interface to deploy MariaDB and PostgreSQL databases via containers and manage their complete lifecycle. Features real-time monitoring, filesystem browsing, and comprehensive container management capabilities.
 
+![Deploy a Database in just a few clicks](img/deployDatabase.jpg)
+
 ## ✨ Features
 
 ### 🚀 Database Deployment
